@@ -74,7 +74,7 @@ import retrofit2.Response
 import java.util.*
 
 
-class MapApplication constructor(var mapView: MapView,  var maneuverView: MapboxManeuverView?,  var voiceToggleButton: ToggleButton):
+class MapApplication constructor(var mapView: MapView,  var maneuverView: MapboxManeuverView?):
     KLocationObserver
 {
     private var destination: Point? = null
@@ -426,13 +426,13 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
     private fun setupVoiceButton()
     {
-        voiceToggleButton.setOnCheckedChangeListener { _, isChecked ->
-            voiceInstructionsPlayer.volume(SpeechVolume(if (!isChecked) 1.0f else 0.0f))
-        }
+//        voiceToggleButton.setOnCheckedChangeListener { _, isChecked ->
+//            voiceInstructionsPlayer.volume(SpeechVolume(if (!isChecked) 1.0f else 0.0f))
+//        }
     }
 
 
-    private fun startNavigation(destination: Point?,encodedPath: String) {
+    public fun startNavigation(destination: Point?,encodedPath: String) {
         try {
             destination?.let { navigateToFixedRoute(it,encodedPath) }
             isNavigationInProgress = true
@@ -759,7 +759,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      * start to end
      * @param context is the calling activity
      */
-    private fun startNavigation(origin: Point?, destination: Point?)
+    public fun startNavigation(origin: Point?, destination: Point?)
     {
         try
         {

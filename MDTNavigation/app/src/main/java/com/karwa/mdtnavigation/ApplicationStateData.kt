@@ -9,9 +9,12 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 
 /**
- * Created by Oashraf on 11/20/2019.
+ * Created by mHamza on 12/20/2023.
  */
-object ApplicationStateData : Application() {
+public object ApplicationStateData : Application() {
+
+
+
     lateinit var location: Location
     private val inProgressRouteType = 1
     private val currentTripId = ""
@@ -19,6 +22,7 @@ object ApplicationStateData : Application() {
     private const val DEFAULT_LAT = 25.193747
     private const val DEFAULT_LON = 51.474661
     private var etaToStop = -1.0
+
 
     override fun onCreate() {
         super.onCreate()
