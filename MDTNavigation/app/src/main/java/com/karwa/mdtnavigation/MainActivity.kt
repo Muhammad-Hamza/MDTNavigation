@@ -14,8 +14,6 @@ class MainActivity : ComponentActivity() {
         if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
             val route: String? = intent.data?.getQueryParameter("ROUTE_INTENT")
             Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
-
-
         }
     }
 }
