@@ -35,6 +35,7 @@ import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.navigation.base.TimeFormat
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
+import com.mapbox.navigation.base.extensions.coordinates
 import com.mapbox.navigation.base.formatter.UnitType
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.*
@@ -488,7 +489,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                                     .applyDefaultNavigationOptions()
                                     .voiceUnits(UnitType.METRIC.value)
                                     .language(Locale.ENGLISH.toLanguageTag())
-                                    .coordinatesList(listOf(originPoint,destination))
+                                    .coordinatesList(listOf(finalList.last(),finalList.first()))
                                     .bearingsList(listOf(Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0).build(), null))
                                     .build())
                                 .build();
