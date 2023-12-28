@@ -86,7 +86,7 @@ public class ImageUtil
 
     public static int dpToPx(int dp)
     {
-        float density = ApplicationStateData.INSTANCE.getApplicationContext().getResources().getDisplayMetrics().density;
+        float density = ApplicationStateData.Companion.getInstance().getApplicationContext().getResources().getDisplayMetrics().density;
         return Math.round((float) dp * density);
     }
 }

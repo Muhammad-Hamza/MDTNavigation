@@ -11,7 +11,7 @@ import androidx.core.app.ActivityCompat
 /**
  * Created by mHamza on 12/20/2023.
  */
-public object ApplicationStateData : Application() {
+ class ApplicationStateData : Application() {
 
 
 
@@ -19,10 +19,22 @@ public object ApplicationStateData : Application() {
     private val inProgressRouteType = 1
     private val currentTripId = ""
     private var locationObserver: KLocationObserver? = null
-    private const val DEFAULT_LAT = 25.193747
-    private const val DEFAULT_LON = 51.474661
+    private  val DEFAULT_LAT = 25.193747
+    private  val DEFAULT_LON = 51.474661
     private var etaToStop = -1.0
 
+    companion object {
+        @Volatile
+        private var INSTANCE: ApplicationStateData? = null
+
+        fun getInstance() =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ApplicationStateData().also { INSTANCE = it }
+            }
+    }
+    init {
+        INSTANCE = this
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -36,9 +48,6 @@ public object ApplicationStateData : Application() {
         }
     }
     private fun initBackgroundServices() {
-        //initAITP();
-//        MQTTManager.getInstance();
-        //      SignalRManager.getInstance();
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -48,9 +57,6 @@ public object ApplicationStateData : Application() {
             ) != PackageManager.PERMISSION_GRANTED
         ) return
         startServices()
-
-//        if (StoredConfig.getInstance().scannerEnable)
-//            startSerialPortListening();
     }
 
     fun startServices() {
@@ -60,7 +66,7 @@ public object ApplicationStateData : Application() {
     }
 
     fun getCurrentLocation(): Location {
-        return if (location == null) {
+        return if (!::location.isInitialized) {
             val loc = Location("")
             loc.latitude = DEFAULT_LAT
             loc.longitude = DEFAULT_LON

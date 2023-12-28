@@ -19,15 +19,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        binding = DataBindingUtil.setContentView(this, R.layout.main_activity)
         Handler().postDelayed(Runnable {
             runOnUiThread{
-                binding = DataBindingUtil.setContentView(this, R.layout.main_activity)
-
                 initMap()
                 val intent = intent
                 if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
                     val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
-                    mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getCurrentLocation().longitude, ApplicationStateData.getCurrentLocation().latitude),route)
+                    mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
                     startTimer()
                     Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
                 }
@@ -46,12 +45,12 @@ class MainActivity : ComponentActivity() {
     private fun updateBottomBar(isResetting: Boolean) {
         runOnUiThread {
             binding.bottomBarLayout.distanceToDestination.text =
-                if (isResetting) "--" else ApplicationStateData.txtRemainingDistance
+                if (isResetting) "--" else ApplicationStateData.getInstance().txtRemainingDistance
             binding.bottomBarLayout.arrivalTimeText.text =
-                if (isResetting) "--" else ApplicationStateData.txtArrivalTime
+                if (isResetting) "--" else ApplicationStateData.getInstance().txtArrivalTime
             if (isResetting) binding.bottomBarLayout.etaFirstPieceVal.text = "--" else {
                 val etaParts: List<String> =
-                    ApplicationStateData.txtRemainingTime.split("<br>")
+                    ApplicationStateData.getInstance().txtRemainingTime.split("<br>")
                 if (etaParts != null && etaParts.size > 0) {
                     val etaFirstPart =
                         etaParts[0].split(" ".toRegex()).dropLastWhile { it.isEmpty() }

@@ -177,23 +177,23 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         if (routeProgress.currentState == RouteProgressState.COMPLETE || routeProgress.fractionTraveled >= 1.0)
         {
             stopNavigation()
-            ApplicationStateData.txtArrivalTime = ("--:--")
-            ApplicationStateData.arrivalTime = (0)
-            ApplicationStateData.txtRemainingDistance = ("--")
-            ApplicationStateData.txtRemainingTime = ("--")
-            ApplicationStateData.setEtaToStop(0.0)
+            ApplicationStateData.getInstance().txtArrivalTime = ("--:--")
+            ApplicationStateData.getInstance().arrivalTime = (0)
+            ApplicationStateData.getInstance().txtRemainingDistance = ("--")
+            ApplicationStateData.getInstance().txtRemainingTime = ("--")
+            ApplicationStateData.getInstance().setEtaToStop(0.0)
 
         }
         else
         {
 
-            ApplicationStateData.txtRemainingDistance = (formatDistance(routeProgress.distanceRemaining.toDouble()))
+            ApplicationStateData.getInstance().txtRemainingDistance = (formatDistance(routeProgress.distanceRemaining.toDouble()))
 
-            ApplicationStateData.txtRemainingTime = (formatTime(routeProgress.durationRemaining))
+            ApplicationStateData.getInstance().txtRemainingTime = (formatTime(routeProgress.durationRemaining))
 
-            ApplicationStateData.setEtaToStop( routeProgress.durationRemaining)
-            ApplicationStateData.arrivalTime = (arrival.timeInMillis)
-            ApplicationStateData.txtArrivalTime = (
+            ApplicationStateData.getInstance().setEtaToStop( routeProgress.durationRemaining)
+            ApplicationStateData.getInstance().arrivalTime = (arrival.timeInMillis)
+            ApplicationStateData.getInstance().txtArrivalTime = (
                     String.format(
                         "%1$02d:%2$02d",
                         arrival.get(Calendar.HOUR_OF_DAY),
@@ -218,7 +218,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         val maneuvers = maneuverApi.getManeuvers(routeProgress)
         maneuvers.fold({ error ->
             Toast.makeText(
-                ApplicationStateData.applicationContext,
+                ApplicationStateData.getInstance().applicationContext,
                 error.errorMessage,
                 Toast.LENGTH_SHORT
             ).show()
@@ -370,7 +370,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
         // initialize maneuver arrow view to draw arrows on the map
         val routeArrowOptions =
-            RouteArrowOptions.Builder(ApplicationStateData.applicationContext).build()
+            RouteArrowOptions.Builder(ApplicationStateData.getInstance().applicationContext).build()
         routeArrowView = MapboxRouteArrowView(routeArrowOptions)
 
         // initialize route line, the withRouteLineBelowLayerId is specified to place
@@ -378,7 +378,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         // the value of this option will depend on the style that you are using
         // and under which layer the route line should be placed on the map layers stack
         val mapboxRouteLineOptions =
-            MapboxRouteLineOptions.Builder(ApplicationStateData.applicationContext).withRouteLineBelowLayerId(
+            MapboxRouteLineOptions.Builder(ApplicationStateData.getInstance().applicationContext).withRouteLineBelowLayerId(
                     "road-label"
                 ).build()
         routeLineApi = MapboxRouteLineApi(mapboxRouteLineOptions)
@@ -394,13 +394,13 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
         // initialize bottom progress view
         tripProgressApi = MapboxTripProgressApi(
-            TripProgressUpdateFormatter.Builder(ApplicationStateData.applicationContext).distanceRemainingFormatter(
+            TripProgressUpdateFormatter.Builder(ApplicationStateData.getInstance().applicationContext).distanceRemainingFormatter(
                     DistanceRemainingFormatter(distanceFormatterOptions)
-                ).timeRemainingFormatter(TimeRemainingFormatter(ApplicationStateData.applicationContext)).percentRouteTraveledFormatter(
+                ).timeRemainingFormatter(TimeRemainingFormatter(ApplicationStateData.getInstance().applicationContext)).percentRouteTraveledFormatter(
                     PercentDistanceTraveledFormatter()
                 ).estimatedTimeToArrivalFormatter(
                     EstimatedTimeToArrivalFormatter(
-                        ApplicationStateData.applicationContext,
+                        ApplicationStateData.getInstance().applicationContext,
                         TimeFormat.NONE_SPECIFIED
                     )
                 ).build()
@@ -412,13 +412,13 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     private fun initVoiceInstructions()
     {
         speechApi = MapboxSpeechApi(
-            ApplicationStateData.applicationContext,
+            ApplicationStateData.getInstance().applicationContext,
             MAPBOX_ACCESS_TOKEN,
             Locale.US.toLanguageTag()
         )
 
         voiceInstructionsPlayer = MapboxVoiceInstructionsPlayer(
-            ApplicationStateData.applicationContext,
+            ApplicationStateData.getInstance().applicationContext,
             MAPBOX_ACCESS_TOKEN,
             Locale.US.toLanguageTag()
         )
@@ -442,12 +442,12 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     }
      fun navigateToFixedRoute(destination: Point,encodedPath: String?){
          registerObserver()
-        val originLocation = ApplicationStateData.getCurrentLocation()
+        val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
         val originPoint = Point.fromLngLat(
             originLocation!!.longitude,
             originLocation!!.latitude
         )
-        val list = PolyUtil.decode("}zwxCoadyHiAiCRM\\S\\S^S\\Uf@Yh@[vAu@RKGSaAgCM_@o@kBCYMa@I]CIAMBKHKDGFEf@YXQlEgCl@YJGz@c@nF}Cf@YLIHODK?K@IJ?HCIBK??IAIAGCIaDsJi@aB~EwBdAc@Tv@nDtM`AlD");
+         val list = PolyUtil.decode(encodedPath);
 
         val finalList = filterPoints(list)
 
@@ -551,7 +551,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     }
 
     fun registerLocationObserver(){
-        ApplicationStateData.registerLocationObserver(this)
+        ApplicationStateData.getInstance().registerLocationObserver(this)
     }
     private fun registerObserver()
     {
@@ -566,7 +566,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     {
         viewportDataSource = MapboxNavigationViewportDataSource(mapView.getMapboxMap())
 
-        ApplicationStateData.getCurrentLocation().let { viewportDataSource.onLocationChanged(it) }
+        ApplicationStateData.getInstance().getCurrentLocation().let { viewportDataSource.onLocationChanged(it) }
         navigationCamera = NavigationCamera(
             mapView.getMapboxMap(), mapView.camera, viewportDataSource
         )
@@ -582,7 +582,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         else
         {
             MapboxNavigationProvider.create(
-                NavigationOptions.Builder(ApplicationStateData.applicationContext).accessToken(MAPBOX_ACCESS_TOKEN).locationEngine( LocationEngineProvider.getBestLocationEngine(ApplicationStateData.applicationContext))
+                NavigationOptions.Builder(ApplicationStateData.getInstance().applicationContext).accessToken(MAPBOX_ACCESS_TOKEN).locationEngine( LocationEngineProvider.getBestLocationEngine(ApplicationStateData.getInstance().applicationContext))
                     .build()
             )
         }
@@ -593,7 +593,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         mapView.location.apply {
             this.locationPuck = LocationPuck2D(
                 bearingImage = ContextCompat.getDrawable(
-                    ApplicationStateData.applicationContext,
+                    ApplicationStateData.getInstance().applicationContext,
                     com.mapbox.navigation.R.drawable.mapbox_navigation_puck_icon
                 )
             )
@@ -632,10 +632,10 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
     private fun findRoute(destination: Point)
     {
-        val originLocation = ApplicationStateData.getCurrentLocation()
+        val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
         val originPoint = Point.fromLngLat(
-            ApplicationStateData.getCurrentLocation()!!.longitude,
-            ApplicationStateData.getCurrentLocation()!!.latitude
+            ApplicationStateData.getInstance().getCurrentLocation()!!.longitude,
+            ApplicationStateData.getInstance().getCurrentLocation()!!.latitude
         )
 
 
@@ -647,7 +647,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         navigationRouteId =
             mapboxNavigation.requestRoutes(
                 RouteOptions.builder().applyDefaultNavigationOptions().applyLanguageAndVoiceUnitOptions(
-                    ApplicationStateData.applicationContext
+                    ApplicationStateData.getInstance().applicationContext
                 ).coordinatesList(
                     listOf(
                         originPoint,
@@ -739,7 +739,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         if (::mapboxNavigation.isInitialized || mapboxNavigation.isDestroyed.not())
         {
             unregisterObservers()
-            ApplicationStateData.registerLocationObserver(null)
+            ApplicationStateData.getInstance().registerLocationObserver(null)
             speechApi.cancel()
             voiceInstructionsPlayer.shutdown()
             clearRoutesAndArrow()
@@ -775,11 +775,11 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     {
         val cameraOptions = CameraOptions.Builder().center(
             Point.fromLngLat(
-                ApplicationStateData.getCurrentLocation().longitude,
-                ApplicationStateData.getCurrentLocation().latitude
+                ApplicationStateData.getInstance().getCurrentLocation().longitude,
+                ApplicationStateData.getInstance().getCurrentLocation().latitude
             )
         ).zoom(17.0).build()
-        navigationLocationProvider.changePosition(ApplicationStateData.getCurrentLocation())
+        navigationLocationProvider.changePosition(ApplicationStateData.getInstance().getCurrentLocation())
         mapView.getMapboxMap().setCamera(cameraOptions)
 
     }
