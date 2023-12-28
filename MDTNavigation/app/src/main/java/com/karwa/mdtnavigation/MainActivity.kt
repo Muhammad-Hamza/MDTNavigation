@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
 
                     },1000)
                 }else{
-                    Toast.makeText(this,"Please allow permission from app settins",Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this,"Please allow permission from app settings",Toast.LENGTH_SHORT).show()
                 }
             }
 
