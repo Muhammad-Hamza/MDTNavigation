@@ -257,8 +257,6 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                         )
                     }
                 }
-
-
                 viewportDataSource.onRouteChanged(routeUpdateResult.navigationRoutes.first())
                 viewportDataSource.evaluate()
             }
@@ -448,7 +446,8 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
             e.printStackTrace()
         }
     }
-     fun navigateToFixedRoute(destination: Point,encodedPath: String?){
+    @SuppressLint("MissingPermission")
+    fun navigateToFixedRoute(destination: Point,encodedPath: String?){
          registerObserver()
         val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
         val originPoint = Point.fromLngLat(
@@ -460,7 +459,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         val finalList = filterPoints(list)
 
         val mapMatching = MapboxMapMatching.builder()
-            .accessToken("sk.eyJ1Ijoic2FtYXNoIiwiYSI6ImNsaDk2ams4ejA0aXozZXMyNmw1Z2ZyMHoifQ.DC-aLtwbzrTxff-2cC0-2w")
+            .accessToken(MAPBOX_ACCESS_TOKEN)
             .coordinates(finalList)
             .voiceInstructions(true)
             .steps(true)
@@ -498,6 +497,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 //                                loc.latitude = finalList.last().latitude()
 //                                loc.longitude = finalList.last().longitude()
                             mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute()))
+                            mapboxNavigation.startTripSession(true)
 
 //                            viewportDataSource.followingZoomPropertyOverride(17.0)
 //                            viewportDataSource.followingPadding = EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)

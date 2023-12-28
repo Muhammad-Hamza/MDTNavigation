@@ -1,11 +1,19 @@
 package com.karwa.mdtnavigation
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import com.karwa.mdtnavigation.databinding.MainActivityBinding
 import com.mapbox.geojson.Point
@@ -16,25 +24,70 @@ import java.util.TimerTask
 class MainActivity : AppCompatActivity() {
     lateinit var binding:MainActivityBinding
     var mapApplication: MapApplication? = null
+    val MY_PERMISSIONS_REQUEST_READ_LOCATION = 7
+    private lateinit var requestLocationPermission: ActivityResultLauncher<String>
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.main_activity)
         initMap()
-        Handler().postDelayed(Runnable {
-            runOnUiThread{
-                val intent = intent
-                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
-                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
-                    mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
-                    startTimer()
-                    Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
+
+        requestLocationPermission =
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+                if (isGranted) {
+                    startServices()
+                    Handler().postDelayed(Runnable {
+                        runOnUiThread{
+                            val intent = intent
+                            if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                                val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
+                                mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
+                                startTimer()
+                                Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                    },1000)
+                }else{
+                    Toast.makeText(this,"Please allow permission from app settins",Toast.LENGTH_SHORT).show()
                 }
             }
 
-        },1000)
+
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            startServices()
+            Handler().postDelayed(Runnable {
+                runOnUiThread{
+                    val intent = intent
+                    if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                        val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
+                        mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
+                        startTimer()
+                        Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+            },1000)
+
+        } else {
+            requestLocationPermission()
+        }
 
 
+
+    }
+
+
+    private fun startServices() {
+        startForegroundService(Intent(this, BackgroundLocationService::class.java))
+    }
+    private fun requestLocationPermission() {
+        requestLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
     fun initMap() {
         mapApplication = MapApplication(binding.navigationView, binding.maneuverView)
@@ -43,13 +96,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (mapApplication != null) {
-            mapApplication!!.stopNavigation()
+//            mapApplication!!.stopNavigation()
             mapApplication!!.registerLocationObserver()
-//            Handler().postDelayed({
-//                if (mapApplication != null) {
-//                    mapApplication!!.onStart()
-//                }
-//            },4000)
+           Handler().postDelayed({
+                if (mapApplication != null) {
+                    mapApplication!!.onStart()
+               }
+            },4000)
         }
     }
 
@@ -99,4 +152,17 @@ class MainActivity : AppCompatActivity() {
         }
         onTripTimer.scheduleAtFixedRate(onTripTimerTask, 0, 1000)
     }
+
+    private fun requestLocationPermission(activity: Activity) {
+        try {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf<String>(Manifest.permission.ACCESS_FINE_LOCATION),
+                MY_PERMISSIONS_REQUEST_READ_LOCATION
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
 }
