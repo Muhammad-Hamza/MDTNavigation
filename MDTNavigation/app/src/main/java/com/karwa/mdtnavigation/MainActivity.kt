@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.view.View
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
 import com.karwa.mdtnavigation.databinding.MainActivityBinding
 import com.mapbox.geojson.Point
@@ -13,16 +13,16 @@ import java.util.Timer
 import java.util.TimerTask
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     lateinit var binding:MainActivityBinding
     var mapApplication: MapApplication? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = DataBindingUtil.setContentView(this, R.layout.main_activity)
+        initMap()
         Handler().postDelayed(Runnable {
             runOnUiThread{
-                initMap()
                 val intent = intent
                 if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
                     val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
@@ -37,10 +37,21 @@ class MainActivity : ComponentActivity() {
 
     }
     fun initMap() {
-        mapApplication =
-            MapApplication(binding.navigationView, binding.maneuverView)
+        mapApplication = MapApplication(binding.navigationView, binding.maneuverView)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (mapApplication != null) {
+            mapApplication!!.stopNavigation()
+            mapApplication!!.registerLocationObserver()
+//            Handler().postDelayed({
+//                if (mapApplication != null) {
+//                    mapApplication!!.onStart()
+//                }
+//            },4000)
+        }
+    }
 
     private fun updateBottomBar(isResetting: Boolean) {
         runOnUiThread {
@@ -86,5 +97,6 @@ class MainActivity : ComponentActivity() {
                 })
             }
         }
+        onTripTimer.scheduleAtFixedRate(onTripTimerTask, 0, 1000)
     }
 }

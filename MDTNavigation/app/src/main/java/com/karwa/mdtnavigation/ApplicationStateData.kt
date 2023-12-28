@@ -59,10 +59,8 @@ import androidx.core.app.ActivityCompat
         startServices()
     }
 
-    fun startServices() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(Intent(this, BackgroundLocationService::class.java))
-        }
+    private fun startServices() {
+        startForegroundService(Intent(this, BackgroundLocationService::class.java))
     }
 
     fun getCurrentLocation(): Location {
@@ -91,9 +89,9 @@ import androidx.core.app.ActivityCompat
     }
 
 
-    lateinit var txtArrivalTime: String
-    lateinit var txtRemainingTime: String
-    lateinit var txtRemainingDistance: String
+     var txtArrivalTime: String  = ""
+     var txtRemainingTime: String = ""
+     var txtRemainingDistance: String = ""
     var arrivalTime: Long = 0
 
 }

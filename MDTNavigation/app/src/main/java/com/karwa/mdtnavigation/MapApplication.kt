@@ -1,10 +1,14 @@
 package com.karwa.mdtnavigation
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.location.Location
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import android.widget.ToggleButton
+import androidx.core.app.ActivityCompat
 import androidx.core.app.AppLaunchChecker
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.LatLng
@@ -236,25 +240,29 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      * - routes annotations get refreshed (for example, congestion annotation that indicate the live traffic along the route)
      * - driver got off route and a reroute was executed
      */
+    var drawFirstTime = true
     private val routesObserver: RoutesObserver = RoutesObserver { routeUpdateResult ->
         if (routeUpdateResult.navigationRoutes.isNotEmpty())
         { // generate route geometries asynchronously and render them
+            if(drawFirstTime){
+                drawFirstTime = false
+                val routeLines =
+                    routeUpdateResult.navigationRoutes.map { NavigationRouteLine(it, null) }
 
-            val routeLines =
-                routeUpdateResult.navigationRoutes.map { NavigationRouteLine(it, null) }
-
-            routeLineApi.setNavigationRouteLines(routeLines) { value ->
-                mapView.getMapboxMap().getStyle()?.apply {
-                    routeLineView.renderRouteDrawData(
-                        this,
-                        value
-                    )
+                routeLineApi.setNavigationRouteLines(routeLines) { value ->
+                    mapView.getMapboxMap().getStyle()?.apply {
+                        routeLineView.renderRouteDrawData(
+                            this,
+                            value
+                        )
+                    }
                 }
+
+
+                viewportDataSource.onRouteChanged(routeUpdateResult.navigationRoutes.first())
+                viewportDataSource.evaluate()
             }
 
-
-            viewportDataSource.onRouteChanged(routeUpdateResult.navigationRoutes.first())
-            viewportDataSource.evaluate()
         }
         else
         {
@@ -447,12 +455,12 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
             originLocation!!.longitude,
             originLocation!!.latitude
         )
-         val list = PolyUtil.decode(encodedPath);
+         val list = PolyUtil.decode(encodedPath)
 
         val finalList = filterPoints(list)
 
         val mapMatching = MapboxMapMatching.builder()
-            .accessToken("pk.eyJ1Ijoic2FtYXNoIiwiYSI6ImNrMG94ZmR6MTAwY2MzZ210ZGNvajBhMXYifQ.JACwZ07i2-LQIcm9znH_4w")
+            .accessToken("sk.eyJ1Ijoic2FtYXNoIiwiYSI6ImNsaDk2ams4ejA0aXozZXMyNmw1Z2ZyMHoifQ.DC-aLtwbzrTxff-2cC0-2w")
             .coordinates(finalList)
             .voiceInstructions(true)
             .steps(true)
@@ -486,13 +494,26 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                                     .build())
                                 .build();
 
+//                            val loc = Location("")
+//                                loc.latitude = finalList.last().latitude()
+//                                loc.longitude = finalList.last().longitude()
                             mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute()))
+
+//                            viewportDataSource.followingZoomPropertyOverride(17.0)
+//                            viewportDataSource.followingPadding = EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
+//                            navigationCamera.requestNavigationCameraToOverview()
+//                            navigationLocationProvider.changePosition(
+//                                location = loc,
+//                                keyPoints = emptyList(),
+//                            )
+
                         }
                     }
                 }
             }
 
             override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
+                Log.d("MappApplication",t.message!!)
             }
         })
     }
@@ -558,7 +579,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         mapboxNavigation.registerRoutesObserver(routesObserver)
         mapboxNavigation.registerRouteProgressObserver(routeProgressObserver)
         mapboxNavigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
-        mapboxNavigation.registerOffRouteObserver(offRouteProgressObserver)
+        //mapboxNavigation.registerOffRouteObserver(offRouteProgressObserver)
         mapboxNavigation.registerArrivalObserver(arrivalObserver)
     }
 
@@ -722,6 +743,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         if (::mapboxNavigation.isInitialized && mapboxNavigation.isDestroyed.not())
         {
             //and recenter camera in Trip Session
+                drawFirstTime = true
                 registerObserver()
                 mapboxNavigation.startTripSession(true)
                 //processNavigation()
