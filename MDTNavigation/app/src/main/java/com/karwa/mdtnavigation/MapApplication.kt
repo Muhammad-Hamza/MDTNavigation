@@ -1,17 +1,13 @@
 package com.karwa.mdtnavigation
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
 import android.location.Location
 import android.util.Log
 import android.view.View
 import android.widget.Toast
-import android.widget.ToggleButton
-import androidx.core.app.ActivityCompat
-import androidx.core.app.AppLaunchChecker
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.maps.android.PolyUtil
 import com.mapbox.android.core.location.LocationEngineProvider
 import com.mapbox.android.gestures.MoveGestureDetector
@@ -35,7 +31,6 @@ import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.navigation.base.TimeFormat
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
-import com.mapbox.navigation.base.extensions.coordinates
 import com.mapbox.navigation.base.formatter.UnitType
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.*
@@ -72,16 +67,14 @@ import com.mapbox.navigation.ui.voice.api.MapboxVoiceInstructionsPlayer
 import com.mapbox.navigation.ui.voice.model.SpeechAnnouncement
 import com.mapbox.navigation.ui.voice.model.SpeechError
 import com.mapbox.navigation.ui.voice.model.SpeechValue
-import com.mapbox.navigation.ui.voice.model.SpeechVolume
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import java.util.*
 
 
-class MapApplication constructor(var mapView: MapView,  var maneuverView: MapboxManeuverView?):
-    KLocationObserver
-{
+class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxManeuverView?) :
+    KLocationObserver {
     private var destination: Point? = null
 
     var isNavigationInProgress = false
@@ -99,6 +92,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      * to the Maps SDK in order to update the user location indicator on the map.
      */
     private val navigationLocationProvider = NavigationLocationProvider()
+
 
     /**
      * Mapbox Navigation entry point. There should only be one instance of this object for the app.
@@ -157,7 +151,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     private var haveDeparted = false
 
 
-    private var onCameraIdleListener : OnCameraIdleListener? = null
+    private var onCameraIdleListener: OnCameraIdleListener? = null
 
 
     /**
@@ -165,8 +159,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      */
     private val routeProgressObserver: RouteProgressObserver =
         RouteProgressObserver { routeProgress -> // update the camera position to account for the progressed fragment of the route
-            if (isNavigationInProgress)
-            {
+            if (isNavigationInProgress) {
                 updateProgressOnTheMap(routeProgress)
 
                 val arrival = Calendar.getInstance()
@@ -177,10 +170,8 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         }
 
 
-    private fun updateApplicationState(routeProgress: RouteProgress, arrival: Calendar)
-    {
-        if (routeProgress.currentState == RouteProgressState.COMPLETE || routeProgress.fractionTraveled >= 1.0)
-        {
+    private fun updateApplicationState(routeProgress: RouteProgress, arrival: Calendar) {
+        if (routeProgress.currentState == RouteProgressState.COMPLETE || routeProgress.fractionTraveled >= 1.0) {
             stopNavigation()
             ApplicationStateData.getInstance().txtArrivalTime = ("--:--")
             ApplicationStateData.getInstance().arrivalTime = (0)
@@ -188,15 +179,15 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
             ApplicationStateData.getInstance().txtRemainingTime = ("--")
             ApplicationStateData.getInstance().setEtaToStop(0.0)
 
-        }
-        else
-        {
+        } else {
 
-            ApplicationStateData.getInstance().txtRemainingDistance = (formatDistance(routeProgress.distanceRemaining.toDouble()))
+            ApplicationStateData.getInstance().txtRemainingDistance =
+                (formatDistance(routeProgress.distanceRemaining.toDouble()))
 
-            ApplicationStateData.getInstance().txtRemainingTime = (formatTime(routeProgress.durationRemaining))
+            ApplicationStateData.getInstance().txtRemainingTime =
+                (formatTime(routeProgress.durationRemaining))
 
-            ApplicationStateData.getInstance().setEtaToStop( routeProgress.durationRemaining)
+            ApplicationStateData.getInstance().setEtaToStop(routeProgress.durationRemaining)
             ApplicationStateData.getInstance().arrivalTime = (arrival.timeInMillis)
             ApplicationStateData.getInstance().txtArrivalTime = (
                     String.format(
@@ -204,15 +195,13 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                         arrival.get(Calendar.HOUR_OF_DAY),
                         arrival.get(Calendar.MINUTE)
                     )
-                )
+                    )
         }
     }
 
-    private fun updateProgressOnTheMap(routeProgress: RouteProgress)
-    {
+    private fun updateProgressOnTheMap(routeProgress: RouteProgress) {
         val style = mapView.getMapboxMap().getStyle()
-        if (style != null)
-        {
+        if (style != null) {
             val maneuverArrowResult = routeArrowApi.addUpcomingManeuverArrow(routeProgress)
             routeArrowView.renderManeuverUpdate(style, maneuverArrowResult)
 
@@ -243,9 +232,8 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      */
     var drawFirstTime = true
     private val routesObserver: RoutesObserver = RoutesObserver { routeUpdateResult ->
-        if (routeUpdateResult.navigationRoutes.isNotEmpty())
-        { // generate route geometries asynchronously and render them
-            if(drawFirstTime){
+        if (routeUpdateResult.navigationRoutes.isNotEmpty()) { // generate route geometries asynchronously and render them
+            if (drawFirstTime) {
                 drawFirstTime = false
                 val routeLines =
                     routeUpdateResult.navigationRoutes.map { NavigationRouteLine(it, null) }
@@ -262,19 +250,15 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                 viewportDataSource.evaluate()
             }
 
-        }
-        else
-        {
+        } else {
             clearRoutesAndArrow()
         }
 
     }
 
-    private fun clearRoutesAndArrow()
-    { // remove the route line and route arrow from the map
+    private fun clearRoutesAndArrow() { // remove the route line and route arrow from the map
         val style = mapView.getMapboxMap().getStyle()
-        if (style != null)
-        {
+        if (style != null) {
             routeLineApi.clearRouteLine { value ->
                 routeLineView.renderClearRouteLineValue(
                     style, value
@@ -324,18 +308,14 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     *
     *
      */
-    private val arrivalObserver = object : ArrivalObserver
-    {
-        override fun onFinalDestinationArrival(routeProgress: RouteProgress)
-        {
+    private val arrivalObserver = object : ArrivalObserver {
+        override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
         }
 
-        override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress)
-        {
+        override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) {
         }
 
-        override fun onWaypointArrival(routeProgress: RouteProgress)
-        {
+        override fun onWaypointArrival(routeProgress: RouteProgress) {
         }
 
     }
@@ -366,8 +346,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
     }
 
-    init
-    {
+    init {
 
         initMapboxNavigation()
 
@@ -385,7 +364,8 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         // the value of this option will depend on the style that you are using
         // and under which layer the route line should be placed on the map layers stack
         val mapboxRouteLineOptions =
-            MapboxRouteLineOptions.Builder(ApplicationStateData.getInstance().applicationContext).withRouteLineBelowLayerId(
+            MapboxRouteLineOptions.Builder(ApplicationStateData.getInstance().applicationContext)
+                .withRouteLineBelowLayerId(
                     "road-label"
                 ).build()
         routeLineApi = MapboxRouteLineApi(mapboxRouteLineOptions)
@@ -401,23 +381,25 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
         // initialize bottom progress view
         tripProgressApi = MapboxTripProgressApi(
-            TripProgressUpdateFormatter.Builder(ApplicationStateData.getInstance().applicationContext).distanceRemainingFormatter(
+            TripProgressUpdateFormatter.Builder(ApplicationStateData.getInstance().applicationContext)
+                .distanceRemainingFormatter(
                     DistanceRemainingFormatter(distanceFormatterOptions)
-                ).timeRemainingFormatter(TimeRemainingFormatter(ApplicationStateData.getInstance().applicationContext)).percentRouteTraveledFormatter(
+                )
+                .timeRemainingFormatter(TimeRemainingFormatter(ApplicationStateData.getInstance().applicationContext))
+                .percentRouteTraveledFormatter(
                     PercentDistanceTraveledFormatter()
                 ).estimatedTimeToArrivalFormatter(
-                    EstimatedTimeToArrivalFormatter(
-                        ApplicationStateData.getInstance().applicationContext,
-                        TimeFormat.NONE_SPECIFIED
-                    )
-                ).build()
+                EstimatedTimeToArrivalFormatter(
+                    ApplicationStateData.getInstance().applicationContext,
+                    TimeFormat.NONE_SPECIFIED
+                )
+            ).build()
         )
 
         setupVoiceButton()
     }
 
-    private fun initVoiceInstructions()
-    {
+    private fun initVoiceInstructions() {
         speechApi = MapboxSpeechApi(
             ApplicationStateData.getInstance().applicationContext,
             MAPBOX_ACCESS_TOKEN,
@@ -431,31 +413,31 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         )
     }
 
-    private fun setupVoiceButton()
-    {
+    private fun setupVoiceButton() {
 //        voiceToggleButton.setOnCheckedChangeListener { _, isChecked ->
 //            voiceInstructionsPlayer.volume(SpeechVolume(if (!isChecked) 1.0f else 0.0f))
 //        }
     }
 
 
-    public fun startNavigation(destination: Point?,encodedPath: String) {
+    public fun startNavigation(destination: Point?, encodedPath: String) {
         try {
-            destination?.let { navigateToFixedRoute(it,encodedPath) }
+            destination?.let { navigateToFixedRoute(it, encodedPath) }
             isNavigationInProgress = true
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
+
     @SuppressLint("MissingPermission")
-    fun navigateToFixedRoute(destination: Point,encodedPath: String?){
-         registerObserver()
+    fun navigateToFixedRoute(destination: Point, encodedPath: String?) {
+        registerObserver()
         val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
         val originPoint = Point.fromLngLat(
             originLocation!!.longitude,
             originLocation!!.latitude
         )
-         val list = PolyUtil.decode(encodedPath)
+        val list = PolyUtil.decode(encodedPath)
 
         val finalList = filterPoints(list)
 
@@ -478,35 +460,36 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
                     response.body()?.matchings()?.let { matchingList ->
                         if (matchingList.isNotEmpty()) {
                             val matchedPoint = matchingList.first()
-                            val  directionsRoute = DirectionsRoute.builder()
+                            val directionsRoute = DirectionsRoute.builder()
                                 .legs(matchedPoint.legs())
                                 .duration(matchedPoint.duration())
                                 .distance(matchedPoint.distance())
                                 .routeIndex("0")
                                 .geometry(matchedPoint.geometry())
-                                .routeOptions(RouteOptions
-                                    .builder()
-                                    .applyDefaultNavigationOptions()
-                                    .voiceUnits(UnitType.METRIC.value)
-                                    .language(Locale.ENGLISH.toLanguageTag())
-                                    .coordinatesList(listOf(finalList.last(),finalList.first()))
-                                    .bearingsList(listOf(Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0).build(), null))
-                                    .build())
+                                .routeOptions(
+                                    RouteOptions
+                                        .builder()
+                                        .applyDefaultNavigationOptions()
+                                        .voiceUnits(UnitType.METRIC.value)
+                                        .language(Locale.ENGLISH.toLanguageTag())
+                                        .coordinatesList(
+                                            finalList
+                                        )
+                                        .bearingsList(
+                                            listOf(
+                                                Bearing.builder()
+                                                    .angle(originLocation.bearing.toDouble())
+                                                    .degrees(45.0).build(), null
+                                            )
+                                        )
+                                        .build()
+                                )
                                 .build();
 
-//                            val loc = Location("")
-//                                loc.latitude = finalList.last().latitude()
-//                                loc.longitude = finalList.last().longitude()
+                            Log.d("MapApplicationDirectionRoute",mapboxNavigation.getNavigationRoutes().toString())
                             mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute()))
                             mapboxNavigation.startTripSession(true)
 
-//                            viewportDataSource.followingZoomPropertyOverride(17.0)
-//                            viewportDataSource.followingPadding = EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
-//                            navigationCamera.requestNavigationCameraToOverview()
-//                            navigationLocationProvider.changePosition(
-//                                location = loc,
-//                                keyPoints = emptyList(),
-//                            )
 
                         }
                     }
@@ -514,9 +497,14 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
             }
 
             override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
-                Log.d("MappApplication",t.message!!)
+                Log.d("MappApplication", t.message!!)
             }
         })
+    }
+
+    fun clearRoute() {
+        mapboxNavigation.stopTripSession()
+        mapboxNavigation.setNavigationRoutes(emptyList())
     }
 
     private fun filterPoints(mList: List<LatLng>): List<Point> {
@@ -563,8 +551,8 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
         return R * c
     }
-    private fun unregisterObservers()
-    {
+
+    private fun unregisterObservers() {
         mapboxNavigation.unregisterRoutesObserver(routesObserver)
         mapboxNavigation.unregisterRouteProgressObserver(routeProgressObserver)
         mapboxNavigation.unregisterVoiceInstructionsObserver(voiceInstructionsObserver)
@@ -572,11 +560,11 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         mapboxNavigation.unregisterArrivalObserver(arrivalObserver)
     }
 
-    fun registerLocationObserver(){
+    fun registerLocationObserver() {
         ApplicationStateData.getInstance().registerLocationObserver(this)
     }
-    private fun registerObserver()
-    {
+
+    private fun registerObserver() {
         mapboxNavigation.registerRoutesObserver(routesObserver)
         mapboxNavigation.registerRouteProgressObserver(routeProgressObserver)
         mapboxNavigation.registerVoiceInstructionsObserver(voiceInstructionsObserver)
@@ -584,34 +572,32 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         mapboxNavigation.registerArrivalObserver(arrivalObserver)
     }
 
-    private fun initCamera()
-    {
+    private fun initCamera() {
         viewportDataSource = MapboxNavigationViewportDataSource(mapView.getMapboxMap())
 
-        ApplicationStateData.getInstance().getCurrentLocation().let { viewportDataSource.onLocationChanged(it) }
+        ApplicationStateData.getInstance().getCurrentLocation()
+            .let { viewportDataSource.onLocationChanged(it) }
         navigationCamera = NavigationCamera(
             mapView.getMapboxMap(), mapView.camera, viewportDataSource
         )
         viewportDataSource.evaluate()
     }
 
-    private fun initMapboxNavigation()
-    {
-        mapboxNavigation = if (MapboxNavigationProvider.isCreated())
-        {
+    private fun initMapboxNavigation() {
+        mapboxNavigation = if (MapboxNavigationProvider.isCreated()) {
             MapboxNavigationProvider.retrieve()
-        }
-        else
-        {
+        } else {
             MapboxNavigationProvider.create(
-                NavigationOptions.Builder(ApplicationStateData.getInstance().applicationContext).accessToken(MAPBOX_ACCESS_TOKEN).locationEngine( LocationEngineProvider.getBestLocationEngine(ApplicationStateData.getInstance().applicationContext))
+                NavigationOptions.Builder(ApplicationStateData.getInstance().applicationContext)
+                    .accessToken(MAPBOX_ACCESS_TOKEN).locationEngine(
+                    LocationEngineProvider.getBestLocationEngine(ApplicationStateData.getInstance().applicationContext)
+                )
                     .build()
             )
         }
     }
 
-    private fun initPuckLocation()
-    {
+    private fun initPuckLocation() {
         mapView.location.apply {
             this.locationPuck = LocationPuck2D(
                 bearingImage = ContextCompat.getDrawable(
@@ -627,7 +613,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         mapView.getMapboxMap().addOnMoveListener(object : OnMoveListener {
             override fun onMove(detector: MoveGestureDetector): Boolean {
                 onCameraIdleListener?.onCameraIdle(null)
-              return false
+                return false
             }
 
             override fun onMoveBegin(detector: MoveGestureDetector) {
@@ -652,8 +638,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 
     }
 
-    private fun findRoute(destination: Point)
-    {
+    private fun findRoute(destination: Point) {
         val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
         val originPoint = Point.fromLngLat(
             ApplicationStateData.getInstance().getCurrentLocation()!!.longitude,
@@ -668,42 +653,49 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         // to allow for support of all of the Navigation SDK features
         navigationRouteId =
             mapboxNavigation.requestRoutes(
-                RouteOptions.builder().applyDefaultNavigationOptions().applyLanguageAndVoiceUnitOptions(
-                    ApplicationStateData.getInstance().applicationContext
-                ).coordinatesList(
+                RouteOptions.builder().applyDefaultNavigationOptions()
+                    .applyLanguageAndVoiceUnitOptions(
+                        ApplicationStateData.getInstance().applicationContext
+                    ).coordinatesList(
                     listOf(
                         originPoint,
                         destination
                     )
                 ) // provide the bearing for the origin of the request to ensure
-                // that the returned route faces in the direction of the current user movement
-                .bearingsList(
-                    listOf(
-                        Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0).build(),
-                        null
-                    )
-                ).build(),
+                    // that the returned route faces in the direction of the current user movement
+                    .bearingsList(
+                        listOf(
+                            Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0)
+                                .build(),
+                            null
+                        )
+                    ).build(),
 
-                object : NavigationRouterCallback
-                {
-                    override fun onRoutesReady(routes: List<NavigationRoute>, routerOrigin: RouterOrigin)
-                    {
+                object : NavigationRouterCallback {
+                    override fun onRoutesReady(
+                        routes: List<NavigationRoute>,
+                        routerOrigin: RouterOrigin
+                    ) {
                         setRouteAndStartNavigation(routes)
                         isNavigationInProgress = true
                     }
 
-                    override fun onFailure(reasons: List<RouterFailure>, routeOptions: RouteOptions)
-                    {
+                    override fun onFailure(
+                        reasons: List<RouterFailure>,
+                        routeOptions: RouteOptions
+                    ) {
                     }
 
-                    override fun onCanceled(routeOptions: RouteOptions, routerOrigin: RouterOrigin)
-                    { // no impl
+                    override fun onCanceled(
+                        routeOptions: RouteOptions,
+                        routerOrigin: RouterOrigin
+                    ) { // no impl
                     }
                 })
     }
 
-    @SuppressLint("MissingPermission") private fun setRouteAndStartNavigation(routes: List<NavigationRoute>)
-    { // set routes, where the first route in the list is the primary route that
+    @SuppressLint("MissingPermission")
+    private fun setRouteAndStartNavigation(routes: List<NavigationRoute>) { // set routes, where the first route in the list is the primary route that
         // will be used for active guidance
         mapboxNavigation.setNavigationRoutes(routes)
         navigationCamera.requestNavigationCameraToFollowing()
@@ -738,29 +730,29 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
 //        }
 //    }
 
-    @SuppressLint("MissingPermission") fun onStart()
-    {
+    @SuppressLint("MissingPermission")
+    fun onStart() {
 
-        if (::mapboxNavigation.isInitialized && mapboxNavigation.isDestroyed.not())
-        {
+        if (::mapboxNavigation.isInitialized && mapboxNavigation.isDestroyed.not()) {
             //and recenter camera in Trip Session
-                drawFirstTime = true
-                registerObserver()
-                mapboxNavigation.startTripSession(true)
-                //processNavigation()
+            drawFirstTime = true
+            registerObserver()
+            mapboxNavigation.startTripSession(true)
+            //processNavigation()
+        } else {
+
         }
     }
 
-    private fun clearNavigation(){
+     fun clearNavigation() {
         stopNavigation()
         clearRoutesAndArrow()
     }
 
-    fun onStop()
-    {
-
-        if (::mapboxNavigation.isInitialized || mapboxNavigation.isDestroyed.not())
-        {
+    fun onStop() {
+        if (::mapboxNavigation.isInitialized || mapboxNavigation.isDestroyed.not()) {
+            mapboxNavigation.resetTripSession()
+            mapboxNavigation.setNavigationRoutes(emptyList())
             unregisterObservers()
             ApplicationStateData.getInstance().registerLocationObserver(null)
             speechApi.cancel()
@@ -782,74 +774,58 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
      * start to end
      * @param context is the calling activity
      */
-    public fun startNavigation(origin: Point?, destination: Point?)
-    {
-        try
-        {
+    public fun startNavigation(origin: Point?, destination: Point?) {
+        try {
             destination?.let { findRoute(it) }
             isNavigationInProgress = true
-        } catch (e: Exception)
-        {
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun recenterMap()
-    {
+    fun recenterMap() {
         val cameraOptions = CameraOptions.Builder().center(
             Point.fromLngLat(
                 ApplicationStateData.getInstance().getCurrentLocation().longitude,
                 ApplicationStateData.getInstance().getCurrentLocation().latitude
             )
         ).zoom(17.0).build()
-        navigationLocationProvider.changePosition(ApplicationStateData.getInstance().getCurrentLocation())
+        navigationLocationProvider.changePosition(
+            ApplicationStateData.getInstance().getCurrentLocation()
+        )
         mapView.getMapboxMap().setCamera(cameraOptions)
 
     }
 
-    fun stopNavigation()
-    {
+    fun stopNavigation() {
 
         unregisterObservers()
         clearRoutesAndArrow()
-        navigationRouteId?.let { it ->
-            mapboxNavigation.cancelRouteRequest(it)
-        }
 
-        if (::voiceInstructionsPlayer.isInitialized)
-        {
+        if (::voiceInstructionsPlayer.isInitialized) {
             voiceInstructionsPlayer.clear()
             voiceInstructionsPlayer.shutdown()
         }
-        if (::speechApi.isInitialized)
-        {
+        if (::speechApi.isInitialized) {
             speechApi.cancel()
         }
 
-        if (::mapboxNavigation.isInitialized && !mapboxNavigation.isDestroyed)
-        {
-            mapboxNavigation.stopTripSession()
-           mapboxNavigation.resetTripSession()
-        }
-
+        mapboxNavigation.stopTripSession()
+        mapboxNavigation.resetTripSession()
 
         if (isNavigationInProgress)
             isNavigationInProgress = false
 
 
-
     }
 
-    companion object
-    {
+    companion object {
         private val TAG = MapApplication::class.java.simpleName
     }
 
 
-    private fun formatTime(seconds: Double): String
-    {
-        if (seconds < 60)
-        {
+    private fun formatTime(seconds: Double): String {
+        if (seconds < 60) {
             return String.format("%1$.0f sec", seconds)
         }
         if (seconds < (60 * 2)) // less than 2 minutes
@@ -860,9 +836,7 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
         return if (seconds < (60 * 60)) // less than 1 hour
         {
             String.format("%1$.0f min", seconds / 60, seconds % 60)
-        }
-        else
-        {
+        } else {
             String.format(
                 "%1$.0f hr<br>%2$.0f min", seconds / (60 * 60), (seconds % (60 * 60)) / 60
             )
@@ -870,46 +844,37 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     }
 
 
-    private fun formatDistance(meters: Double): String
-    {
-        return if (meters < 1000)
-        {
+    private fun formatDistance(meters: Double): String {
+        return if (meters < 1000) {
             String.format("%.0f m", meters);
-        }
-        else if (meters < 10000)
-        {
+        } else if (meters < 10000) {
             String.format("%.1f km", meters / 1000.0);
-        }
-        else
-        {
+        } else {
             String.format("%.0f km", meters / 1000.0);
         }
     }
 
-    override fun onNewLocation(location: Location?)
-    {
+    override fun onNewLocation(location: Location?) {
         navigationLocationProvider.changePosition(
             location = location!!,
             keyPoints = emptyList(),
         )
 
-        if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER)
-        {
+        if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
             mapCameraRecenterTimer = System.currentTimeMillis()
             //sanitizeNavigation()
 
-            if (isFirstTime)
-            {
+            if (isFirstTime) {
                 isFirstTime = false
                 viewportDataSource.followingZoomPropertyOverride(17.0)
-                viewportDataSource.followingPadding = EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
+                viewportDataSource.followingPadding =
+                    EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
             }
 
         }
         navigationCamera.requestNavigationCameraToFollowing()
 
-        if (location != null)
-        {
+        if (location != null) {
             viewportDataSource.onLocationChanged(location)
         }
         viewportDataSource.evaluate()
@@ -932,12 +897,11 @@ class MapApplication constructor(var mapView: MapView,  var maneuverView: Mapbox
     }
 
 
-
-    fun registerCameraMoveLocationObserver(listener : OnCameraIdleListener){
+    fun registerCameraMoveLocationObserver(listener: OnCameraIdleListener) {
         onCameraIdleListener = listener
     }
 
-    interface OnCameraIdleListener{
+    interface OnCameraIdleListener {
         fun onCameraIdle(location: Location?)
     }
 }
