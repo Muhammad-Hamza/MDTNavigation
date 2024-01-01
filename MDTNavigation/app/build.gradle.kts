@@ -65,7 +65,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("com.mapbox.navigation:android:2.6.0")
+    implementation("com.mapbox.navigation:android:2.17.8")
     implementation("com.google.maps.android:android-maps-utils:0.5")
     implementation("com.google.android.gms:play-services-maps:18.0.2")
     implementation("com.google.android.gms:play-services-location:20.0.0")
