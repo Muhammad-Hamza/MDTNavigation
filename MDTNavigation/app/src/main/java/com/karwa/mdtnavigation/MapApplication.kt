@@ -439,67 +439,125 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         )
         val list = PolyUtil.decode(encodedPath)
 
-        val finalList = filterPoints(list)
+        val finalList = mutableListOf<Point>()
+        list.forEach {
+            finalList.add(Point.fromLngLat(it.longitude,it.latitude))
+        }
+//        val finalList = filterPoints(list)
+        //finalList.reverse()
+       // finalList.add(finalList.size ,originPoint)
 
-        val mapMatching = MapboxMapMatching.builder()
-            .accessToken(MAPBOX_ACCESS_TOKEN)
-            .coordinates(finalList)
-            .voiceInstructions(true)
-            .steps(true)
-            .bannerInstructions(true)
-            .profile(DirectionsCriteria.PROFILE_DRIVING)
-            .build()
+        mapboxNavigation.requestRoutes(
+            RouteOptions.builder().applyDefaultNavigationOptions()
+                .applyLanguageAndVoiceUnitOptions(
+                    ApplicationStateData.getInstance().applicationContext
+                ).coordinatesList(
+                    listOf(finalList.last(),finalList.first())
+                ) // provide the bearing for the origin of the request to ensure
+                // that the returned route faces in the direction of the current user movement
+                .bearingsList(
+                    listOf(
+                        Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0)
+                            .build(),
+                        null
+                    )
+                ).build(),
 
-        mapMatching.enqueueCall(object : Callback<MapMatchingResponse> {
-            override fun onResponse(
-                call: Call<MapMatchingResponse>,
-                response: Response<MapMatchingResponse>
-            ) {
-
-                if (response.isSuccessful) {
-                    response.body()?.matchings()?.let { matchingList ->
-                        if (matchingList.isNotEmpty()) {
-                            val matchedPoint = matchingList.first()
-                            val directionsRoute = DirectionsRoute.builder()
-                                .legs(matchedPoint.legs())
-                                .duration(matchedPoint.duration())
-                                .distance(matchedPoint.distance())
-                                .routeIndex("0")
-                                .geometry(matchedPoint.geometry())
-                                .routeOptions(
-                                    RouteOptions
-                                        .builder()
-                                        .applyDefaultNavigationOptions()
-                                        .voiceUnits(UnitType.METRIC.value)
-                                        .language(Locale.ENGLISH.toLanguageTag())
-                                        .coordinatesList(
-                                            finalList
-                                        )
-                                        .bearingsList(
-                                            listOf(
-                                                Bearing.builder()
-                                                    .angle(originLocation.bearing.toDouble())
-                                                    .degrees(45.0).build(), null
-                                            )
-                                        )
-                                        .build()
-                                )
-                                .build();
-
-                            Log.d("MapApplicationDirectionRoute",mapboxNavigation.getNavigationRoutes().toString())
-                            mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute()))
-                            mapboxNavigation.startTripSession(true)
-
-
-                        }
-                    }
+            object : NavigationRouterCallback {
+                override fun onRoutesReady(
+                    routes: List<NavigationRoute>,
+                    routerOrigin: RouterOrigin
+                ) {
+                    setRouteAndStartNavigation(routes)
+                    isNavigationInProgress = true
                 }
-            }
 
-            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
-                Log.d("MappApplication", t.message!!)
-            }
-        })
+                override fun onFailure(
+                    reasons: List<RouterFailure>,
+                    routeOptions: RouteOptions
+                ) {
+                }
+
+                override fun onCanceled(
+                    routeOptions: RouteOptions,
+                    routerOrigin: RouterOrigin
+                ) { // no impl
+                }
+            })
+
+
+//        val mapMatching = MapboxMapMatching.builder()
+//            .accessToken(MAPBOX_ACCESS_TOKEN)
+//            .coordinates(finalList)
+//            .voiceInstructions(true)
+//            .steps(true)
+//            .bannerInstructions(true)
+//            .profile(DirectionsCriteria.PROFILE_DRIVING)
+//            .build()
+//
+//        mapMatching.enqueueCall(object : Callback<MapMatchingResponse> {
+//            override fun onResponse(
+//                call: Call<MapMatchingResponse>,
+//                response: Response<MapMatchingResponse>
+//            ) {
+//
+//                if (response.isSuccessful) {
+//                    response.body()?.matchings()?.let { matchingList ->
+//                        matchingList[0].toDirectionRoute().toNavigationRoute(
+//                            RouterOrigin.Custom()
+//                        ).apply {
+//
+//
+//
+////                            setRouteAndStartNavigation(listOf(this))
+//                            //mapboxNavigation.setNavigationRoutes(listOf(this))
+//                        }
+//                    }
+//                }
+////                if (response.isSuccessful) {
+////                    response.body()?.matchings()?.let { matchingList ->
+////                        if (matchingList.isNotEmpty()) {
+////                            val matchedPoint = matchingList.first()
+////                            val directionsRoute = DirectionsRoute.builder()
+////                                .legs(matchedPoint.legs())
+////                                .duration(matchedPoint.duration())
+////                                .distance(matchedPoint.distance())
+////                                .routeIndex("0")
+////                                .geometry(matchedPoint.geometry())
+////                                .routeOptions(
+////                                    RouteOptions
+////                                        .builder()
+////                                        .applyDefaultNavigationOptions()
+////                                        .voiceUnits(UnitType.METRIC.value)
+////                                        .language(Locale.ENGLISH.toLanguageTag())
+////                                        .coordinatesList(
+////                                           finalList
+////                                        )
+////                                        .bearingsList(
+////                                            listOf(
+////                                                Bearing.builder()
+////                                                    .angle(originLocation.bearing.toDouble())
+////                                                    .degrees(45.0).build(), null
+////                                            )
+////                                        )
+////                                        .build()
+////                                )
+////                                .build();
+////
+////                            //Log.d("MapApplicationDirectionRoute",mapboxNavigation.getNavigationRoutes().toString())
+////                            mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute(RouterOrigin.Custom)))
+////                            mapboxNavigation.startTripSession(true)
+////
+////
+////                        }
+////                    }
+////                }
+//            }
+//
+//            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
+//                Log.d("MappApplication", t.message!!)
+//            }
+//        })
     }
 
     fun clearRoute() {
