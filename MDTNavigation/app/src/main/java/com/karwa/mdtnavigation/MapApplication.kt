@@ -32,6 +32,7 @@ import com.mapbox.navigation.base.TimeFormat
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
 import com.mapbox.navigation.base.formatter.UnitType
+import com.mapbox.navigation.base.internal.extensions.getDestination
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.*
 import com.mapbox.navigation.base.trip.model.RouteLegProgress
@@ -445,120 +446,43 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         }
 //        val finalList = filterPoints(list)
         //finalList.reverse()
-       // finalList.add(finalList.size ,originPoint)
 
-        mapboxNavigation.requestRoutes(
-            RouteOptions.builder().applyDefaultNavigationOptions()
-                .applyLanguageAndVoiceUnitOptions(
-                    ApplicationStateData.getInstance().applicationContext
-                ).coordinatesList(
-                    listOf(finalList.last(),finalList.first())
-                ) // provide the bearing for the origin of the request to ensure
-                // that the returned route faces in the direction of the current user movement
-                .bearingsList(
-                    listOf(
-                        Bearing.builder().angle(originLocation.bearing.toDouble()).degrees(45.0)
-                            .build(),
-                        null
-                    )
-                ).build(),
 
-            object : NavigationRouterCallback {
-                override fun onRoutesReady(
-                    routes: List<NavigationRoute>,
-                    routerOrigin: RouterOrigin
-                ) {
-                    setRouteAndStartNavigation(routes)
-                    isNavigationInProgress = true
+        val mapMatching = MapboxMapMatching.builder()
+            .accessToken(MAPBOX_ACCESS_TOKEN)
+            .coordinates(finalList)
+            .voiceInstructions(true)
+            .steps(true)
+            .waypointIndices(0,finalList.size - 1)
+            .bannerInstructions(true)
+            .profile(DirectionsCriteria.PROFILE_DRIVING)
+            .build()
+        mapMatching.enqueueCall(object : Callback<MapMatchingResponse> {
+            override fun onResponse(
+                call: Call<MapMatchingResponse>,
+                response: Response<MapMatchingResponse>
+            ) {
+                if (response.isSuccessful) {
+                    response.body()?.matchings()?.let { matchingList ->
+                        val directionRoute  = matchingList[0].toDirectionRoute()
+                        matchingList[0].toDirectionRoute().toNavigationRoute(
+                            RouterOrigin.Custom()
+                        ).apply {
+                            Log.d("MatchedRouteDetails", "Origin: ${this.origin}")
+                            Log.d("MatchedRouteDetails", "Destination: ${this.getDestination()}")
+                            setRouteAndStartNavigation(listOf(this))
+                        }
+                    }
+
                 }
+            }
 
-                override fun onFailure(
-                    reasons: List<RouterFailure>,
-                    routeOptions: RouteOptions
-                ) {
-                }
+            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
+            }
+        })
 
-                override fun onCanceled(
-                    routeOptions: RouteOptions,
-                    routerOrigin: RouterOrigin
-                ) { // no impl
-                }
-            })
-
-
-//        val mapMatching = MapboxMapMatching.builder()
-//            .accessToken(MAPBOX_ACCESS_TOKEN)
-//            .coordinates(finalList)
-//            .voiceInstructions(true)
-//            .steps(true)
-//            .bannerInstructions(true)
-//            .profile(DirectionsCriteria.PROFILE_DRIVING)
-//            .build()
-//
-//        mapMatching.enqueueCall(object : Callback<MapMatchingResponse> {
-//            override fun onResponse(
-//                call: Call<MapMatchingResponse>,
-//                response: Response<MapMatchingResponse>
-//            ) {
-//
-//                if (response.isSuccessful) {
-//                    response.body()?.matchings()?.let { matchingList ->
-//                        matchingList[0].toDirectionRoute().toNavigationRoute(
-//                            RouterOrigin.Custom()
-//                        ).apply {
-//
-//
-//
-////                            setRouteAndStartNavigation(listOf(this))
-//                            //mapboxNavigation.setNavigationRoutes(listOf(this))
-//                        }
-//                    }
-//                }
-////                if (response.isSuccessful) {
-////                    response.body()?.matchings()?.let { matchingList ->
-////                        if (matchingList.isNotEmpty()) {
-////                            val matchedPoint = matchingList.first()
-////                            val directionsRoute = DirectionsRoute.builder()
-////                                .legs(matchedPoint.legs())
-////                                .duration(matchedPoint.duration())
-////                                .distance(matchedPoint.distance())
-////                                .routeIndex("0")
-////                                .geometry(matchedPoint.geometry())
-////                                .routeOptions(
-////                                    RouteOptions
-////                                        .builder()
-////                                        .applyDefaultNavigationOptions()
-////                                        .voiceUnits(UnitType.METRIC.value)
-////                                        .language(Locale.ENGLISH.toLanguageTag())
-////                                        .coordinatesList(
-////                                           finalList
-////                                        )
-////                                        .bearingsList(
-////                                            listOf(
-////                                                Bearing.builder()
-////                                                    .angle(originLocation.bearing.toDouble())
-////                                                    .degrees(45.0).build(), null
-////                                            )
-////                                        )
-////                                        .build()
-////                                )
-////                                .build();
-////
-////                            //Log.d("MapApplicationDirectionRoute",mapboxNavigation.getNavigationRoutes().toString())
-////                            mapboxNavigation.setNavigationRoutes(listOf(directionsRoute.toNavigationRoute(RouterOrigin.Custom)))
-////                            mapboxNavigation.startTripSession(true)
-////
-////
-////                        }
-////                    }
-////                }
-//            }
-//
-//            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
-//                Log.d("MappApplication", t.message!!)
-//            }
-//        })
     }
+
 
     fun clearRoute() {
         mapboxNavigation.stopTripSession()
@@ -795,7 +719,6 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
             //and recenter camera in Trip Session
             drawFirstTime = true
             registerObserver()
-            mapboxNavigation.startTripSession(true)
             //processNavigation()
         } else {
 

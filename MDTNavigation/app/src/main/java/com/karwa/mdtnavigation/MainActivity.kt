@@ -89,16 +89,15 @@ class MainActivity : AppCompatActivity() {
         mapApplication = MapApplication(binding.navigationView, binding.maneuverView)
     }
 
+
     override fun onResume() {
         super.onResume()
         if (mapApplication != null) {
-//            mapApplication!!.stopNavigation()
+            mapApplication!!.stopNavigation()
             mapApplication!!.registerLocationObserver()
-//           Handler().postDelayed({
-//                if (mapApplication != null) {
-//                    mapApplication!!.onStart()
-//               }
-//            },4000)
+                if (mapApplication != null) {
+                    mapApplication!!.onStart()
+               }
         }
     }
 
