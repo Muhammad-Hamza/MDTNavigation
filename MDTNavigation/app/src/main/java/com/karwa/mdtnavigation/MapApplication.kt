@@ -440,13 +440,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         )
         val list = PolyUtil.decode(encodedPath)
 
-        val finalList = mutableListOf<Point>()
-        list.forEach {
-            finalList.add(Point.fromLngLat(it.longitude,it.latitude))
-        }
-//        val finalList = filterPoints(list)
-        //finalList.reverse()
-
+        val finalList = filterPoints(list)
 
         val mapMatching = MapboxMapMatching.builder()
             .accessToken(MAPBOX_ACCESS_TOKEN)
@@ -488,40 +482,32 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         mapboxNavigation.stopTripSession()
         mapboxNavigation.setNavigationRoutes(emptyList())
     }
+    private fun filterPoints(originalList: List<LatLng>): List<Point> {
+        val filteredList = mutableListOf<Point>()
+        val distanceThreshold = 300.0
 
-    private fun filterPoints(mList: List<LatLng>): List<Point> {
-        val shuffledList = mutableListOf<Point>()
+        originalList.forEachIndexed { index, latLng ->
+            // Skip the first point
+            if (index == 0 || index == originalList.size-1) {
+                filteredList.add(Point.fromLngLat(latLng.longitude, latLng.latitude))
+            } else {
+                val previousLatLng = originalList[index - 1]
+                val distance = haversine(
+                    previousLatLng.latitude,
+                    previousLatLng.longitude,
+                    latLng.latitude,
+                    latLng.longitude
+                )
 
-        if (mList.isNotEmpty()) {
-            var previousLatLng = mList[0]
-            var currentIndex = 1
-
-            while (currentIndex < mList.size) {
-                var currentLatLng = mList[currentIndex]
-
-                // Keep updating currentLatLng until the distance is >= 100 meters
-                while (haversine(
-                        previousLatLng.latitude,
-                        previousLatLng.longitude,
-                        currentLatLng.latitude,
-                        currentLatLng.longitude
-                    ) < 100.0
-                ) {
-                    currentIndex++ // Move to the next point
-                    if (currentIndex >= mList.size) {
-                        break // Break if we've reached the end of the list
-                    }
-                    currentLatLng = mList[currentIndex]
+                if (distance >= distanceThreshold) {
+                    filteredList.add(Point.fromLngLat(latLng.longitude, latLng.latitude))
                 }
-
-                // Add the current point to the shuffled list
-                shuffledList.add(Point.fromLngLat(currentLatLng.longitude, currentLatLng.latitude))
-                previousLatLng = currentLatLng
             }
         }
 
-        return shuffledList
+        return filteredList
     }
+
 
     fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val R = 6371000.0 // Earth radius in meters

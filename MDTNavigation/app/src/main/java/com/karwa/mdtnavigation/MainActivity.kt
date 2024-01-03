@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity() {
 //                    mapApplication?.clearRoute()
                     mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
                     startTimer()
-                    Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
+//                    Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
                 }
             }
 
