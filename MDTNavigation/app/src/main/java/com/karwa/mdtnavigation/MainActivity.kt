@@ -1,18 +1,16 @@
 package com.karwa.mdtnavigation
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import com.karwa.mdtnavigation.databinding.MainActivityBinding
@@ -71,6 +69,7 @@ class MainActivity : AppCompatActivity() {
 //                    mapApplication?.clearRoute()
                     mapApplication?.startNavigation(Point.fromLngLat(ApplicationStateData.getInstance().getCurrentLocation().longitude, ApplicationStateData.getInstance().getCurrentLocation().latitude),route)
                     startTimer()
+                    Log.d("MapApplication", "======= Route -> $route")
 //                    Toast.makeText(applicationContext, route,Toast.LENGTH_SHORT).show()
                 }
             }

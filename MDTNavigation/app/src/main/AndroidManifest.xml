@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Always include this permission -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <!-- Include only if your app benefits from precise location access. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -43,8 +44,11 @@
 
         </activity>
 
-        <service android:name=".BackgroundLocationService"
-            android:exported="false"/>
+        <service
+            android:name=".BackgroundLocationService"
+            android:foregroundServiceType="location"
+            android:exported="false">
+        </service>
     </application>
 
 </manifest>
