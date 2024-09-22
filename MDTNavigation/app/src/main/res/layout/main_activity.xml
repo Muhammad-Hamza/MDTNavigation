@@ -1,45 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layout  xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
 
-<RelativeLayout
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-   >
-    <com.mapbox.maps.MapView
-        android:id="@+id/navigationView"
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:mapbox_attributionEnabled="false"
-        app:mapbox_compassEnabled="false"
-        app:mapbox_logoEnabled="false"
-        app:mapbox_resourcesAccessToken="@string/mapbox_access_token"
-        app:mapbox_scaleBarEnabled="false"  >
+        android:layout_height="match_parent">
 
-        <com.mapbox.navigation.ui.maneuver.view.MapboxManeuverView
-            android:id="@+id/maneuverView"
+        <com.mapbox.maps.MapView
+            android:id="@+id/navigationView"
             android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:clickable="false"
-            android:focusable="false"
-            android:layout_marginStart="30dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginEnd="50dp"
-            tools:visibility="visible"
-            android:visibility="gone" />
+            android:layout_height="match_parent"
+            app:mapbox_attributionEnabled="false"
+            app:mapbox_compassEnabled="false"
+            app:mapbox_logoEnabled="false"
+            app:mapbox_resourcesAccessToken="@string/mapbox_access_token"
+            app:mapbox_scaleBarEnabled="false">
 
-    </com.mapbox.maps.MapView>
+            <LinearLayout
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.mapbox.navigation.ui.maneuver.view.MapboxManeuverView
+                    android:id="@+id/maneuverView"
+                    android:layout_width="match_parent"
+                    android:layout_height="100dp"
+                    android:layout_marginStart="30dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_marginEnd="50dp"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
+                <Button
+                    android:id="@+id/btnOffRoute"
+                    android:layout_width="wrap_content"
+                    android:visibility="gone"
+                    android:textColor="@color/white"
+                    android:backgroundTint="@color/colorPrimary"
+                    android:layout_height="wrap_content"
+                    android:text="Off route, Click to route"/>
+
+                <Button
+                    android:id="@+id/btnDrawNextLayout"
+                    android:layout_width="wrap_content"
+                    android:visibility="gone"
+                    android:textColor="@color/white"
+                    android:backgroundTint="@color/colorPrimary"
+                    android:layout_height="wrap_content"
+                    android:text="Draw Next Path"/>
+            </LinearLayout>
+        </com.mapbox.maps.MapView>
 
 
-    <include
-        android:id="@+id/bottomBarLayout"
-        layout="@layout/map_bottom_bar"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/navigationView" />
-</RelativeLayout>
+        <include
+            android:id="@+id/bottomBarLayout"
+            layout="@layout/map_bottom_bar"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/navigationView" />
+    </RelativeLayout>
 
 
 </layout>

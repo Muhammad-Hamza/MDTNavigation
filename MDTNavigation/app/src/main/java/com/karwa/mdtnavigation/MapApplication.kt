@@ -2,37 +2,51 @@ package com.karwa.mdtnavigation
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.location.Location
-import android.text.TextUtils
 import android.util.Log
 import android.view.View
+import android.widget.Button
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.LatLng
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.google.maps.android.SphericalUtil
 import com.mapbox.android.core.location.LocationEngine
 import com.mapbox.android.core.location.LocationEngineProvider
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.api.directions.v5.DirectionsCriteria
-import com.mapbox.api.directions.v5.models.DirectionsResponse
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.bindgen.Expected
+import com.mapbox.geojson.LineString
 import com.mapbox.geojson.Point
+import com.mapbox.geojson.utils.PolylineUtils
 import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.EdgeInsets
 import com.mapbox.maps.MapView
+import com.mapbox.maps.extension.style.StyleContract
+import com.mapbox.maps.extension.style.layers.addLayer
+import com.mapbox.maps.extension.style.layers.addLayerBelow
+import com.mapbox.maps.extension.style.layers.generated.LineLayer
+import com.mapbox.maps.extension.style.layers.getLayer
+import com.mapbox.maps.extension.style.sources.addSource
+import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
+import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.plugin.LocationPuck2D
 import com.mapbox.maps.plugin.animation.camera
 import com.mapbox.maps.plugin.animation.easeTo
+import com.mapbox.maps.plugin.annotation.annotations
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager
+import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
+import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.gestures.OnMoveListener
 import com.mapbox.maps.plugin.gestures.addOnMoveListener
 import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.navigation.base.TimeFormat
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
-import com.mapbox.navigation.base.internal.route.update
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.*
 import com.mapbox.navigation.base.trip.model.RouteLegProgress
@@ -70,10 +84,19 @@ import com.mapbox.navigation.ui.voice.model.SpeechAnnouncement
 import com.mapbox.navigation.ui.voice.model.SpeechError
 import com.mapbox.navigation.ui.voice.model.SpeechValue
 import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 
-class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxManeuverView?) :
-    KLocationObserver {
+class MapApplication constructor(
+    var mapView: MapView,
+    var maneuverView: MapboxManeuverView?,
+    var offRouteButton: Button,
+    var nextRouteButton: Button
+) : KLocationObserver {
     private var destination: Point? = null
 
     var isNavigationInProgress = false
@@ -86,7 +109,8 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
     val MAPBOX_ACCESS_TOKEN = mapView.context.getString(R.string.mapbox_access_token)
 
     var lastCurrentLocation: LatLng? = null
-    private var lastDestinationPointOverall: Point? = null
+    private var lastDestinationCurrentPoint: Point? = null
+    private var lastDestinationOverallPoint: Point? = null
     private lateinit var context: Context
 
     /**
@@ -156,19 +180,22 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
     private var onCameraIdleListener: OnCameraIdleListener? = null
 
 
-    lateinit var listOfChunks: List<List<Point>>
-    lateinit var currentList: List<Point>
+    lateinit var listOfChunks: ArrayList<MutableList<Point>>
+    lateinit var currentList: MutableList<Point>
     var currentIndex = -1
+    var isOffRoute = false
 
     /**
      * Gets notified with progress along the currently active route.
      */
     private val routeProgressObserver: RouteProgressObserver =
         RouteProgressObserver { routeProgress -> // update the camera position to account for the progressed fragment of the route
-            Log.d("MapApplication", "---------------")
+//            Log.d("MapApplication", "---------------")
             val fractionTraveled = routeProgress.fractionTraveled
-            Log.d("MapApplication", "Fraction Traveled: $fractionTraveled")
+//            Log.d("MapApplication", "Fraction Traveled: $fractionTraveled")
 
+            val traveledDistance = routeProgress.distanceTraveled
+            val remainingDistance = routeProgress.distanceRemaining
             // Update the map with the current progress (arrows, polylines, etc.)
 //            updateProgressOnTheMap(routeProgress)
 
@@ -189,43 +216,99 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 //            }
 
             updateApplicationState(routeProgress, arrival)
+//            updateRouteLine(traveledDistance, remainingDistance, routeProgress.navigationRoute)
 
             if (lastCurrentLocation != null) {
                 val distanceInMeters = SphericalUtil.computeDistanceBetween(
                     LatLng(
-                        lastCurrentLocation!!.latitude,
-                        lastCurrentLocation!!.longitude
+                        lastCurrentLocation!!.latitude, lastCurrentLocation!!.longitude
                     ), LatLng(destination!!.latitude(), destination!!.longitude())
                 )
-                Log.d(
-                    "MapApplication",
-                    "Current LatLng: ${lastCurrentLocation!!.latitude}, ${lastCurrentLocation!!.longitude}"
-                )
+//                Log.d(
+//                    "MapApplication",
+//                    "Current LatLng: ${lastCurrentLocation!!.latitude}, ${lastCurrentLocation!!.longitude}"
+//                )
                 Log.d("MapApplication", "Distance:: ${distanceInMeters}")
 
 
+                if (distanceInMeters < 150.0) {
+                    nextRouteButton.visibility = View.VISIBLE
+                } else {
+                    nextRouteButton.visibility = View.GONE
+                }
                 if (fractionTraveled >= 0.80) {
-                    if (isLastRound() && fractionTraveled >= 0.96) {
-                        stopListenerThing()
-                        isNavigationInProgress = false
-                        updateListRoute({
-                            drawFirstTime = true
-                        })
+                    if (isLastRound()) {
+                        if (fractionTraveled >= 0.96) {
+                            startNextRoute(true)
+                        }
                     } else {
-                        Log.d(
-                            "MapApplication",
-                            "User is almost approaching to the section destination"
-                        )
-                        stopListenerThing()
-                        isNavigationInProgress = false
-                        updateListRoute({
-                            drawFirstTime = true
-                        })
+//                        Log.d(
+//                            "MapApplication",
+//                            "User is almost approaching to the section destination"
+//                        )
+                        startNextRoute(true)
                     }
                 }
             }
 
         }
+
+//    fun splitRouteByProgress(routeCoordinates: List<Point>, traveledDistance: Float, remainingDistance: Float): Pair<List<Point>, List<Point>> {
+//        var cumulativeDistance = 0.0
+//        val visitedCoordinates = mutableListOf<Point>()
+//        val unvisitedCoordinates = mutableListOf<Point>()
+//
+//        for (i in 0 until routeCoordinates.size - 1) {
+//            val point1 = routeCoordinates[i]
+//            val point2 = routeCoordinates[i + 1]
+//            val segmentDistance = haversine(point1.latitude(),point1.longitude(), point2.latitude(),point2.longitude())  // Calculate the distance between two points
+//
+//            if (cumulativeDistance + segmentDistance < traveledDistance) {
+//                visitedCoordinates.add(point1)
+//            } else {
+//                unvisitedCoordinates.add(point1)
+//            }
+//            cumulativeDistance += segmentDistance
+//        }
+//
+//        unvisitedCoordinates.add(routeCoordinates.last())  // Ensure the final point is in the unvisited list
+//
+//        return Pair(visitedCoordinates, unvisitedCoordinates)
+//    }
+//
+//    fun updateRouteLine(traveledDistance: Float, remainingDistance: Float, route: NavigationRoute) {
+//        val routeGeometry = route.directionsRoute.geometry()
+//        val routeCoordinates = PolylineUtils.decode(routeGeometry!!, 6)  // Decoding the polyline to coordinates
+//
+//        // Split route into visited and unvisited sections based on traveled distance
+//        val (visitedCoordinates, unvisitedCoordinates) = splitRouteByProgress(routeCoordinates, traveledDistance, remainingDistance)
+//
+//        // Clear existing route from the map
+//        mapView.getMapboxMap().getStyle()!!.getLayer("route-layer")?.let {
+//            mapView.getMapboxMap().getStyle()!!.removeStyleLayer(it.layerId)
+//        }
+//
+//        // Draw visited route in gray
+//        drawPolylineOnMap(visitedCoordinates, Color.GRAY)
+//
+//        // Draw unvisited route in blue
+//        drawPolylineOnMap(unvisitedCoordinates, Color.BLUE)
+//    }
+//
+//    fun drawPolylineOnMap(routeCoordinates: List<Point>, color: Int) {
+//        val lineLayer = LineLayer("polyline-layer", "route-source").apply {
+//            lineColor(color)  // Set the polyline color
+//            lineWidth(10.0)        // Set the polyline width
+//        }
+//
+//        // Create a GeoJSON source for the polyline
+//        val routeSource = GeoJsonSource.Builder("route-source").geometry( LineString.fromLngLats(routeCoordinates))
+//        mapView.getMapboxMap().getStyle()!!.addSource(StyleContract.StyleSourceExtension { routeSource })
+//
+//        // Add the polyline layer
+//        mapView.getMapboxMap().getStyle()!!.addLayer(lineLayer)
+//    }
+
 
     private fun updateApplicationState(routeProgress: RouteProgress, arrival: Calendar) {
         if (routeProgress.currentState == RouteProgressState.COMPLETE || routeProgress.fractionTraveled >= 1.0) {
@@ -245,13 +328,9 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 
             ApplicationStateData.getInstance().setEtaToStop(routeProgress.durationRemaining)
             ApplicationStateData.getInstance().arrivalTime = (arrival.timeInMillis)
-            ApplicationStateData.getInstance().txtArrivalTime = (
-                    String.format(
-                        "%1$02d:%2$02d",
-                        arrival.get(Calendar.HOUR_OF_DAY),
-                        arrival.get(Calendar.MINUTE)
-                    )
-                    )
+            ApplicationStateData.getInstance().txtArrivalTime = (String.format(
+                "%1$02d:%2$02d", arrival.get(Calendar.HOUR_OF_DAY), arrival.get(Calendar.MINUTE)
+            ))
         }
     }
 
@@ -293,8 +372,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                 routeLineApi.setNavigationRouteLines(routeLines) { value ->
                     mapView.getMapboxMap().getStyle()?.apply {
                         routeLineView.renderRouteDrawData(
-                            this,
-                            value
+                            this, value
                         )
                     }
                 }
@@ -351,8 +429,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
      */
     private val voiceInstructionsObserver: VoiceInstructionsObserver =
         VoiceInstructionsObserver { voiceInstructions ->
-            if (isNavigationInProgress)
-                speechApi.generate(voiceInstructions, speechCallback)
+            if (isNavigationInProgress) speechApi.generate(voiceInstructions, speechCallback)
         }
 
     /*
@@ -361,16 +438,16 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
      */
     private val arrivalObserver = object : ArrivalObserver {
         override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
-            Log.d("MapApplication", "Arrived at the final destination.")
+//            Log.d("MapApplication", "Arrived at the final destination.")
             // You can handle other arrival-related tasks here
         }
 
         override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) {
-            Log.d("MapApplication", "Next route leg started.")
+//            Log.d("MapApplication", "Next route leg started.")
         }
 
         override fun onWaypointArrival(routeProgress: RouteProgress) {
-            Log.d("MapApplication", "Arrived at waypoint.")
+//            Log.d("MapApplication", "Arrived at waypoint.")
         }
     }
 
@@ -398,8 +475,11 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 
     private val offRouteProgressObserver: OffRouteObserver = OffRouteObserver { isOffRoute ->
         if (isOffRoute) {
-            Log.d("MapApplication", "Vehicle went off-route, recalculating route.")
+//            Log.d("MapApplication", "Vehicle went off-route, recalculating route.")
             // You can either force recalculation or check the remaining distance manually
+            offRouteButton.visibility = View.VISIBLE
+        } else {
+//            Log.d("MapApplication", "Vehicle none off-route")
         }
     }
 
@@ -487,6 +567,10 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 //        }
     }
 
+    private fun calculateOverallRide() {
+
+    }
+
     public fun startNavigation(destination: Point?, encodedPath: String, context: Context) {
         try {
             destination?.let { navigateToFixedRoute(it, encodedPath, context) }
@@ -496,24 +580,53 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         }
     }
 
+    private fun drawSimplePolyline(list: List<Point>) {
+
+        val lineString = LineString.fromLngLats(list)
+
+        val sourceId = "polyline-source"
+        val geoJsonSource = geoJsonSource(sourceId) {
+            geometry(lineString)
+        }
+
+        mapView.getMapboxMap().getStyle { style ->
+            style.addSource(geoJsonSource)
+
+            val lineLayer = LineLayer("polyline-layer", sourceId).apply {
+                lineColor("#B7D6F6")  // Set the polyline color
+                lineWidth(10.0)        // Set the polyline width
+            }
+
+            style.addLayerBelow(lineLayer, "mapbox-masking-layer-main")
+        }
+
+    }
+
     @SuppressLint("MissingPermission")
     fun navigateToFixedRoute(destination: Point, encodedPath: String?, context: Context) {
         this.context = context
-        val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
-        val originPoint = Point.fromLngLat(
-            originLocation!!.longitude,
-            originLocation!!.latitude
-        )
+//        val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
+//        val originPoint = Point.fromLngLat(
+//            originLocation!!.longitude, originLocation!!.latitude
+//        )
 
         stopListenerThing()
 
         val list = DummyContent.listOfTTestLatLng()
 //        val list = PolyUtil.decode(encodedPath)
 
+//        Log.e("MapApplication", Gson().toJson(list.size.toString()))
+//        Log.e("MapApplication", Gson().toJson(list.first()))
+//        Log.e("MapApplication", Gson().toJson(list.last()))
+
         val finalList = mutableListOf<Point>()
         for (i in 0 until list.size - 1) {
             finalList.add(Point.fromLngLat(list[i].longitude, list[i].latitude))
         }
+
+        lastDestinationOverallPoint = finalList.last()
+        drawSimplePolyline(finalList)
+        calculateTimeAndDistance(finalList)
 
 //        if(finalList.size < 100) {
 //            val mapMatching = MapboxMapMatching.builder()
@@ -562,35 +675,53 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 //        }
 
 
-        Log.e("MapApplication", Gson().toJson(finalList.size.toString()))
+//        Log.e("MapApplication", Gson().toJson(finalList.size.toString()))
+
 //        val filteredList = filterClosePoints(
 //            finalList,
 //            distanceThreshold = 10.0
 //        )  // Example distanceThreshold = 20 meters
 
 //        listOfChunks = finalList.chunked(15)
-        listOfChunks = finalList.chunked(15)
-        Log.e("MapApplication", Gson().toJson(listOfChunks.size.toString()))
-        Log.e("MapApplication", Gson().toJson(finalList.size.toString()))
-        Log.e("MapApplication", Gson().toJson(listOfChunks))
-        Log.e("MapApplication", Gson().toJson(originPoint))
 
-        updateListRoute({})
+        listOfChunks = ArrayList(finalList.chunked(15).map { it.toMutableList() })
+
+        addMarker(finalList.last())
+//        Log.e("MapApplication", Gson().toJson(listOfChunks.size.toString()))
+//        Log.e("MapApplication", Gson().toJson(finalList.size.toString()))
+//        Log.e("MapApplication", Gson().toJson(listOfChunks))
+//        Log.e("MapApplication", Gson().toJson(originPoint))
+
+        updateListRoute(true, {})
     }
 
-    private fun updateListRoute(onSuccessfullDraw: () -> Unit) {
-        Log.e("MapApplication", "${currentIndex + 1} < ${listOfChunks.size}")
+    private fun updateListRoute(
+        needToAddLocationAtInitial: Boolean = true,
+        onSuccessfullDraw: () -> Unit
+    ) {
+//        Log.e("MapApplication", "updateListRoute()")
+//        Log.e("MapApplication", "${currentIndex + 1} < ${listOfChunks.size}")
         if ((currentIndex + 1) < listOfChunks.size) {
             currentIndex = currentIndex + 1
-            lastDestinationPointOverall = listOfChunks.get(currentIndex).last()
+            lastDestinationCurrentPoint = listOfChunks.get(currentIndex).last()
 
+//            currentList.
             currentList = listOfChunks.get(currentIndex)
+            if (needToAddLocationAtInitial)
+                if (lastCurrentLocation != null) {
+                    currentList.add(
+                        0, Point.fromLngLat(
+                            lastCurrentLocation!!.longitude, lastCurrentLocation!!.latitude
+                        )
+                    )
+                }
+
             destination = currentList.last()
 
             findRoute(onSuccessfullDraw)
         } else {
             Toast.makeText(context, "Trip demostration Completed", Toast.LENGTH_SHORT).show()
-            Log.e("MapApplication", "NO Route Found")
+//            Log.e("MapApplication", "NO Route Found")
             stopListenerThing()
         }
     }
@@ -628,17 +759,6 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         return filteredList
     }
 
-    fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val R = 6371000.0 // Earth radius in meters
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLon = Math.toRadians(lon2 - lon1)
-        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        return R * c
-    }
-
     private fun unregisterObservers() {
         mapboxNavigation.unregisterRoutesObserver(routesObserver)
         mapboxNavigation.unregisterRouteProgressObserver(routeProgressObserver)
@@ -660,7 +780,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         mapboxNavigation.registerBannerInstructionsObserver { bannerInstructions ->
 
             // Check if the top banner instruction contains the text you want to modify
-            Log.e("Instruction", bannerInstructions.primary().text())
+//            Log.e("Instruction", bannerInstructions.primary().text())
 //            if (bannerInstructions.primary().text().contains("You will arrive at your destination")) {
 //                // Modify the top direction text
 //                val updatedText = "Arriving at your point" // Your new instruction text
@@ -727,9 +847,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         // Build NavigationOptions with the access token and location engine
         val navigationOptions = NavigationOptions.Builder(
             ApplicationStateData.getInstance().applicationContext
-        )
-            .accessToken(MAPBOX_ACCESS_TOKEN)
-            .locationEngine(locationEngine) // Set the location engine
+        ).accessToken(MAPBOX_ACCESS_TOKEN).locationEngine(locationEngine) // Set the location engine
             .build()
 
         // Initialize MapboxNavigation with NavigationOptions
@@ -801,8 +919,8 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 
     private fun findRoute(onSuccessfullDraw: () -> Unit) {
 
-        Log.d("MapApplication", "Current LatLng List: ${currentList.size}")
-        Log.d("MapApplication", "Current LatLng List: ${currentIndex}")
+//        Log.d("MapApplication", "Current LatLng List: ${currentList.size}")
+//        Log.d("MapApplication", "Current LatLng List: ${currentIndex}")
 
         if (navigationRouteId != null) {
             mapboxNavigation.cancelRouteRequest(navigationRouteId!!)
@@ -811,160 +929,69 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 
         startListenerThing()
 
-        Log.e("MapApplication", (0 until currentList.size).toList().toString())
-        Log.e("MapApplication", "Size: " + (currentList.size).toString())
-        Log.e(
-            "MapApplication",
-            "Coordinate: " + currentList.last().latitude() + "," + currentList.last().longitude()
-        )
-        val list = currentList.subList(1, currentList.size - 1)
+//        Log.e("MapApplication", (0 until currentList.size).toList().toString())
+//        Log.e("MapApplication", "Size: " + (currentList.size).toString())
+//        Log.e(
+//            "MapApplication",
+//            "Coordinate: " + currentList.last().latitude() + "," + currentList.last().longitude()
+//        )
+//        val list = currentList.subList(1, currentList.size - 1)
 
-        navigationRouteId = mapboxNavigation.requestRoutes(
-            RouteOptions.builder().applyDefaultNavigationOptions()
+        navigationRouteId =
+            mapboxNavigation.requestRoutes(RouteOptions.builder().applyDefaultNavigationOptions()
                 .applyLanguageAndVoiceUnitOptions(context)
 //                .coordinates(origin = currentList.first(), destination = currentList.last())
                 .coordinatesList(currentList)
-//                .waypointTargetsList(currentList)
                 .waypointIndicesList(listOf(0, currentList.size - 1))
-                .profile(DirectionsCriteria.PROFILE_DRIVING)
-                .bannerInstructions(true)
+//                .waypointTargetsList(currentList)
+//                .waypointIndicesList((0 until currentList.size).toMutableList())
+                .profile(DirectionsCriteria.PROFILE_DRIVING).bannerInstructions(true)
                 .annotationsList(
                     listOf(
                         DirectionsCriteria.ANNOTATION_CONGESTION_NUMERIC,
                         DirectionsCriteria.ANNOTATION_DISTANCE,
                     )
-                )
-                .geometries(DirectionsCriteria.GEOMETRY_POLYLINE)
-                .voiceInstructions(true)
-                .steps(true)
-                .alternatives(false)
-                .enableRefresh(false)
-                .build(),
+                ).geometries(DirectionsCriteria.GEOMETRY_POLYLINE).voiceInstructions(true)
+                .steps(true).alternatives(false).enableRefresh(false).build(),
+                object : NavigationRouterCallback {
 
-//        navigationRouteId =
-//            mapboxNavigation.requestRoutes(
-//                RouteOptions.builder().applyDefaultNavigationOptions()
-//                    .applyLanguageAndVoiceUnitOptions(
-//                        ApplicationStateData.getInstance().applicationContext
-//                    ).coordinatesList(currentList)
-//                    .waypointIndicesList(listOf(0, currentList.size-1))
-//// provide the bearing for the origin of the request to ensure
-//                    // that the returned route faces in the direction of the current user movement
-//                    .build(),
-
-            object : NavigationRouterCallback {
-
-                override fun onRoutesReady(
-                    routes: List<NavigationRoute>,
-                    routerOrigin: RouterOrigin
-                ) {
-                    Log.d(
-                        "Route Info",
-                        "Route geometry: ${routes.first().routeOptions.geometries()}"
-                    )
-                    Log.e("Instruction", "${currentIndex}==${listOfChunks.size - 1}")
-                    val newRoutes = if (isLastRound()) {
-                        routes
-                    } else {
-                        updateContent(routes)
-                    }
+                    override fun onRoutesReady(
+                        routes: List<NavigationRoute>, routerOrigin: RouterOrigin
+                    ) {
+//                        Log.d(
+//                            "Route Info",
+//                            "Route geometry: ${routes.first().routeOptions.geometries()}"
+//                        )
+//                        Log.e("Instruction", "${currentIndex}==${listOfChunks.size - 1}")
+                        val newRoutes = if (isLastRound()) {
+                            routes
+                        } else {
+                            updateContent(routes)
+                        }
 //                    val gsopnData = Gson().toJson(routerOrigin)
-                    val gsopnData1 = Gson().toJson(newRoutes)
-                    Log.e("Instruction", gsopnData1)
+                        val gsopnData1 = Gson().toJson(newRoutes)
+//                        Log.e("Instruction", gsopnData1)
 
-                    setRouteAndStartNavigation(listOf(newRoutes.first()))
-                    renderRouteOnMap(newRoutes.first())
-                    isNavigationInProgress = true
-                    onSuccessfullDraw()
-                }
+                        setRouteAndStartNavigation(listOf(newRoutes.first()))
+                        renderRouteOnMap(newRoutes.first())
+                        isNavigationInProgress = true
+                        onSuccessfullDraw()
+                    }
 
-                override fun onFailure(
-                    reasons: List<RouterFailure>,
-                    routeOptions: RouteOptions
-                ) {
-                    Log.e("MapApplication", "onFailure")
-                }
+                    override fun onFailure(
+                        reasons: List<RouterFailure>, routeOptions: RouteOptions
+                    ) {
+                        Log.e("MapApplication", "onFailure")
+                    }
 
-                override fun onCanceled(
-                    routeOptions: RouteOptions,
-                    routerOrigin: RouterOrigin
-                ) { // no impl
-                    Log.e("MapApplication", "onCanceled")
-                }
-            })
+                    override fun onCanceled(
+                        routeOptions: RouteOptions, routerOrigin: RouterOrigin
+                    ) { // no impl
+                        Log.e("MapApplication", "onCanceled")
+                    }
+                })
 
     }
-
-    /*    private fun updateContent(routes: List<NavigationRoute>): List<NavigationRoute> {
-             routes.forEach { route ->
-                // Iterate over each leg
-                route.directionsResponse.routes().forEach { directionRoute ->
-                    directionRoute.legs()?.forEach { leg ->
-                        // Iterate over each step
-                        leg.steps()?.forEach { step ->
-                            // Iterate over banner instructions
-                            step.bannerInstructions()?.forEach { instruction ->
-                                val primaryInstruction = instruction.primary()
-
-                                if (primaryInstruction.text().contains("destination", true)) {
-
-                                    val updatedText = primaryInstruction.text().replace("destination", "point", true)
-
-                                    val updatedPrimary = primaryInstruction.toBuilder()
-                                        .text(updatedText)
-                                        .build()
-
-                                    instruction.toBuilder()
-                                        .primary(updatedPrimary)
-                                        .build()
-                                }
-
-                                primaryInstruction.components()?.forEach { component ->
-                                    if (component.text().contains("destination", true)) {
-                                        // Create the updated component with the modified text
-                                        val updatedText =
-                                            component.text().replace("destination", "point", true)
-                                        val updatedComponent =
-                                            component.toBuilder().text(updatedText).build()
-
-                                        // Rebuild the primary instruction with the updated component
-                                        val updatedPrimary = primaryInstruction.toBuilder()
-                                            .components(listOf(updatedComponent)) // Replace the component list
-                                            .build()
-
-                                        // Set the updated primary instruction to the banner instruction
-                                        instruction.toBuilder().primary(updatedPrimary).build()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            return routes
-
-            // Return the updated route
-    //            updatedRoute.build()
-    //        return routes.map { route ->
-    //            if (route.directionsResponse.routes().get(0).legs()!!.get(0).steps().get(0).bannerInstructions().get(0).primary().components().get(0).toBuilder().text().contains("destination")){
-    //                var newContent = route.directionsResponse.routes().get(0).legs()!!.get(0).steps().get(0).bannerInstructions().get(0).primary().components().get(0).text()
-    //                newContent = newContent.replace("destination","points")
-    //                route.directionsResponse.routes().get(0).legs()!!.get(0).steps().get(0).bannerInstructions().get(0).primary().components().get(0).toBuilder().text(newContent)
-    //            }
-
-
-    //        val strContent = Gson().toJson(routes)
-    //
-    //        if (strContent.contains("destination", true)) {
-    //            val newContent = strContent.replace("destination", "point", true)
-    //            val listType = object : TypeToken<List<NavigationRoute>>() {}.type
-    //            val navigationRoutes: List<NavigationRoute> = Gson().fromJson(newContent, listType)
-    //            return navigationRoutes
-    //        } else {
-    //            return routes
-    //        }
-        }*/
 
     private fun isLastRound(): Boolean {
         return currentIndex == listOfChunks.size - 1
@@ -983,27 +1010,19 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                             if (maneuver.instruction()!!
                                     .contains("You will arrive at your destination", true)
                             ) {
-                                maneuver.toBuilder()
-                                    .instruction(
-                                        maneuver.instruction()!!.replace(
-                                            "You will arrive at your destination",
-                                            "Continue",
-                                            true
-                                        )
+                                maneuver.toBuilder().instruction(
+                                    maneuver.instruction()!!.replace(
+                                        "You will arrive at your destination", "Continue", true
                                     )
-                                    .build()
+                                ).build()
                             } else if (maneuver.instruction()!!
                                     .contains("You have arrived at your destination", true)
                             ) {
-                                maneuver.toBuilder()
-                                    .instruction(
-                                        maneuver.instruction()!!.replace(
-                                            "You have arrived at your destination",
-                                            "Continue",
-                                            true
-                                        )
+                                maneuver.toBuilder().instruction(
+                                    maneuver.instruction()!!.replace(
+                                        "You have arrived at your destination", "Continue", true
                                     )
-                                    .build()
+                                ).build()
                             } else {
                                 maneuver
                             }
@@ -1016,27 +1035,23 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                                     if (primary.text()
                                             .contains("You will arrive at your destination", true)
                                     ) {
-                                        primary.toBuilder()
-                                            .text(
-                                                primary.text().replace(
-                                                    "You will arrive at your destination",
-                                                    "Continue",
-                                                    true
-                                                )
+                                        primary.toBuilder().text(
+                                            primary.text().replace(
+                                                "You will arrive at your destination",
+                                                "Continue",
+                                                true
                                             )
-                                            .build()
+                                        ).build()
                                     } else if (primary.text()
                                             .contains("You have arrived at your destination", true)
                                     ) {
-                                        primary.toBuilder()
-                                            .text(
-                                                primary.text().replace(
-                                                    "You have arrived at your destination",
-                                                    "Continue",
-                                                    true
-                                                )
+                                        primary.toBuilder().text(
+                                            primary.text().replace(
+                                                "You have arrived at your destination",
+                                                "Continue",
+                                                true
                                             )
-                                            .build()
+                                        ).build()
                                     } else {
                                         primary
                                     }
@@ -1046,33 +1061,27 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                                 val updatedComponents =
                                     updatedPrimary.components()?.map { component ->
                                         if (component.text().contains(
-                                                "You will arrive at your destination",
-                                                true
+                                                "You will arrive at your destination", true
                                             )
                                         ) {
-                                            component.toBuilder()
-                                                .text(
-                                                    component.text().replace(
-                                                        "You will arrive at your destination",
-                                                        "Continue",
-                                                        true
-                                                    )
+                                            component.toBuilder().text(
+                                                component.text().replace(
+                                                    "You will arrive at your destination",
+                                                    "Continue",
+                                                    true
                                                 )
-                                                .build()
+                                            ).build()
                                         } else if (component.text().contains(
-                                                "You have arrived at your destination",
-                                                true
+                                                "You have arrived at your destination", true
                                             )
                                         ) {
-                                            component.toBuilder()
-                                                .text(
-                                                    component.text().replace(
-                                                        "You have arrived at your destination",
-                                                        "Continue",
-                                                        true
-                                                    )
+                                            component.toBuilder().text(
+                                                component.text().replace(
+                                                    "You have arrived at your destination",
+                                                    "Continue",
+                                                    true
                                                 )
-                                                .build()
+                                            ).build()
                                         } else {
                                             component
                                         }
@@ -1084,9 +1093,7 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                                     .build()
 
                                 // Rebuild the banner instruction with the updated primary instruction
-                                instruction.toBuilder()
-                                    .primary(finalPrimaryInstruction)
-                                    .build()
+                                instruction.toBuilder().primary(finalPrimaryInstruction).build()
                             }
 
                         // Update voice instructions
@@ -1095,41 +1102,27 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                                 val updatedAnnouncement = if (voiceInstruction.announcement()!!
                                         .contains("You will arrive at your destination", true)
                                 ) {
-                                    voiceInstruction.toBuilder()
-                                        .announcement(
-                                            voiceInstruction.announcement()!!.replace(
-                                                "You will arrive at your destination",
-                                                "Continue",
-                                                true
-                                            )
+                                    voiceInstruction.toBuilder().announcement(
+                                        voiceInstruction.announcement()!!.replace(
+                                            "You will arrive at your destination", "Continue", true
                                         )
-                                        .ssmlAnnouncement(
-                                            voiceInstruction.ssmlAnnouncement()!!.replace(
-                                                "You will arrive at your destination",
-                                                "Continue",
-                                                true
-                                            )
+                                    ).ssmlAnnouncement(
+                                        voiceInstruction.ssmlAnnouncement()!!.replace(
+                                            "You will arrive at your destination", "Continue", true
                                         )
-                                        .build()
+                                    ).build()
                                 } else if (voiceInstruction.announcement()!!
                                         .contains("You have arrived at your destination", true)
                                 ) {
-                                    voiceInstruction.toBuilder()
-                                        .announcement(
-                                            voiceInstruction.announcement()!!.replace(
-                                                "You have arrived at your destination",
-                                                "Continue",
-                                                true
-                                            )
+                                    voiceInstruction.toBuilder().announcement(
+                                        voiceInstruction.announcement()!!.replace(
+                                            "You have arrived at your destination", "Continue", true
                                         )
-                                        .ssmlAnnouncement(
-                                            voiceInstruction.ssmlAnnouncement()!!.replace(
-                                                "You have arrived at your destination",
-                                                "Continue",
-                                                true
-                                            )
+                                    ).ssmlAnnouncement(
+                                        voiceInstruction.ssmlAnnouncement()!!.replace(
+                                            "You have arrived at your destination", "Continue", true
                                         )
-                                        .build()
+                                    ).build()
                                 } else {
                                     voiceInstruction
                                 }
@@ -1137,36 +1130,27 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
                             }
 
                         // Rebuild the step with the updated banner instructions
-                        step.toBuilder()
-                            .bannerInstructions(updatedBannerInstructions!!)
-                            .maneuver(updatedManeuver)
-                            .voiceInstructions(updatedVoiceInstructions!!)
+                        step.toBuilder().bannerInstructions(updatedBannerInstructions!!)
+                            .maneuver(updatedManeuver).voiceInstructions(updatedVoiceInstructions!!)
                             .build()
 
                     }
 
                     // Rebuild the leg with the updated steps
-                    leg.toBuilder()
-                        .steps(updatedSteps)
-                        .build()
+                    leg.toBuilder().steps(updatedSteps).build()
                 }
 
                 // Rebuild the direction route with the updated legs
-                directionRoute.toBuilder()
-                    .legs(updatedLegs)
-                    .build()
+                directionRoute.toBuilder().legs(updatedLegs).build()
             }
 
             // Rebuild the directions response with the updated routes
-            val updatedDirectionsResponse = route.directionsResponse.toBuilder()
-                .routes(updatedDirectionRoutes)
-                .build()
+            val updatedDirectionsResponse =
+                route.directionsResponse.toBuilder().routes(updatedDirectionRoutes).build()
 
             // Recreate the NavigationRoute using the updated DirectionsResponse
             val newRoutes = NavigationRoute.create(
-                updatedDirectionsResponse,
-                route.routeOptions,
-                route.origin
+                updatedDirectionsResponse, route.routeOptions, route.origin
             )
 
             // Add the new routes to the updated list
@@ -1302,8 +1286,9 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 
     override fun onNewLocation(location: Location?) {
 
-        if (location != null) {
-            lastCurrentLocation = LatLng(location.latitude, location.longitude)
+        if (location != null && location.bearing > 0) {
+            if (location != null) {
+                lastCurrentLocation = LatLng(location.latitude, location.longitude)
 //            Log.e("MapApplication", "Location: " + location.latitude + "," + location.longitude)
 //            val distanceInMeters = SphericalUtil.computeDistanceBetween(
 //                LatLng(
@@ -1312,30 +1297,31 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
 //                ), LatLng(destination!!.latitude(), destination!!.longitude())
 //            )
 //            Log.d("MapApplication", "Distance:: ${distanceInMeters}")
-        }
-        navigationLocationProvider.changePosition(
-            location = location!!,
-            keyPoints = emptyList(),
-        )
-
-        if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
-            mapCameraRecenterTimer = System.currentTimeMillis()
-            //sanitizeNavigation()
-
-            if (isFirstTime) {
-                isFirstTime = false
-                viewportDataSource.followingZoomPropertyOverride(17.0)
-                viewportDataSource.followingPadding =
-                    EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
             }
+            navigationLocationProvider.changePosition(
+                location = location!!,
+                keyPoints = emptyList(),
+            )
 
-        }
-        navigationCamera.requestNavigationCameraToFollowing()
+            if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
+                mapCameraRecenterTimer = System.currentTimeMillis()
+                //sanitizeNavigation()
 
-        if (location != null) {
-            viewportDataSource.onLocationChanged(location)
+                if (isFirstTime) {
+                    isFirstTime = false
+                    viewportDataSource.followingZoomPropertyOverride(17.0)
+                    viewportDataSource.followingPadding =
+                        EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
+                }
+
+            }
+            navigationCamera.requestNavigationCameraToFollowing()
+
+            if (location != null) {
+                viewportDataSource.onLocationChanged(location)
+            }
+            viewportDataSource.evaluate()
         }
-        viewportDataSource.evaluate()
     }
 
 //    private fun onUserReachedDestination() {
@@ -1347,10 +1333,8 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
         location?.let {
             mapView.getMapboxMap().easeTo(
                 CameraOptions.Builder()
-                    .center(Point.fromLngLat(location.longitude, location.latitude))
-                    .zoom(17.0)
-                    .padding(EdgeInsets(500.0, 0.0, 0.0, 0.0))
-                    .build()
+                    .center(Point.fromLngLat(location.longitude, location.latitude)).zoom(17.0)
+                    .padding(EdgeInsets(500.0, 0.0, 0.0, 0.0)).build()
             )
 
 
@@ -1369,4 +1353,262 @@ class MapApplication constructor(var mapView: MapView, var maneuverView: MapboxM
     fun drawRouteAgain() {
         findRoute({})
     }
+
+    fun calculateOffRouting() {
+        isOffRoute = true
+        //Need to calcualte off routing functionality
+        offRouteButton.visibility = View.GONE
+
+        if (listOfChunks != null && listOfChunks.size > 0) {
+
+            if (!isLastRound()) {
+//                var index = -1 //findNearestChunk(listOfChunks, lastCurrentLocation!!)
+                var (index, nestedIndex) = findNearestChunk(listOfChunks, lastCurrentLocation!!)
+
+
+                val chunk = listOfChunks[index]
+
+                // Calculate distances before and after the nearest point
+                val distanceBefore = if (nestedIndex > 0) {
+                    haversine(
+                        lastCurrentLocation!!.latitude,
+                        lastCurrentLocation!!.longitude,
+                        chunk[nestedIndex - 1].latitude(),
+                        chunk[nestedIndex - 1].longitude()
+                    )
+                } else {
+                    Double.MAX_VALUE  // No point before, set to a high value
+                }
+
+                val distanceAfter = if (nestedIndex < chunk.size - 1) {
+                    haversine(
+                        lastCurrentLocation!!.latitude,
+                        lastCurrentLocation!!.longitude,
+                        chunk[nestedIndex + 1].latitude(),
+                        chunk[nestedIndex + 1].longitude()
+                    )
+                } else {
+                    Double.MAX_VALUE  // No point after, set to a high value
+                }
+
+//                val list = ArrayList<Point>()
+//                list.add(
+//                    Point.fromLngLat(
+//                        lastCurrentLocation!!.longitude, lastCurrentLocation!!.latitude
+//                    )
+//                )
+//                list.add(
+//                    lastDestinationOverallPoint!!
+//                )
+//                listOfChunks.add(list)
+//                index = list.size
+                if (index != -1) {
+                    currentIndex = if (index == 0) 0 else index - 1
+                    // Insert based on which neighboring distance is smaller
+                    if (currentList.size < 24) {
+                        if (distanceBefore < distanceAfter) {
+                            // Insert above the nearest point (before nestedIndex)
+                            listOfChunks.get(currentIndex).add(
+                                nestedIndex,
+                                Point.fromLngLat(
+                                    lastCurrentLocation!!.longitude,
+                                    lastCurrentLocation!!.latitude
+                                )
+                            )
+//                            Log.e(
+//                                "mapApplication",
+//                                "Nearest: Inserted at position above nearest index"
+//                            )
+                        } else {
+                            // Insert below the nearest point (after nestedIndex)
+                            listOfChunks.get(currentIndex + 1).add(
+                                nestedIndex,
+                                Point.fromLngLat(
+                                    lastCurrentLocation!!.longitude,
+                                    lastCurrentLocation!!.latitude
+                                )
+                            )
+//                            Log.e(
+//                                "mapApplication",
+//                                "Nearest: Inserted at position below nearest index"
+//                            )
+                        }
+                    }
+
+//                    Log.e(
+//                        "mapApplication",
+//                        "Nearest Coordinates List: " + Gson().toJson(listOfChunks.get(index))
+//                    )
+                    startNextRoute(false)
+//                    Log.e("mapApplication", "OffRoute: Nearest: " + index)
+                } else {
+                    Log.e("mapApplication", "location not found in any coordinates")
+                }
+            } else {
+                //User at last round
+            }
+        } else {
+            Log.e("mapApplication", "No Data found")
+        }
+    }
+
+    fun startNextRoute(needToAddLocationAtInitial: Boolean) {
+        stopListenerThing()
+        isNavigationInProgress = false
+        updateListRoute(needToAddLocationAtInitial, {
+            drawFirstTime = true
+        })
+    }
+
+
+    fun findNearestChunk(
+        listOfChunks: List<List<Point>>, lastCurrentLocation: LatLng
+    ): Pair<Int, Int> {
+        var shortestDistance = Double.MAX_VALUE
+        var index: Int = -1
+        var nestedIndex: Int = -1
+
+        for (chunkIndex in listOfChunks.indices) {
+            val chunk = listOfChunks[chunkIndex]
+
+            for (pointIndex in chunk.indices) {
+                val point = chunk[pointIndex]
+
+                val distance = haversine(
+                    lastCurrentLocation.latitude,
+                    lastCurrentLocation.longitude,
+                    point.latitude(),
+                    point.longitude()
+                )
+
+                if (distance < shortestDistance) {
+                    shortestDistance = distance
+                    nestedIndex = pointIndex
+                    index = chunkIndex
+                }
+            }
+        }
+//        Log.e("mapApplication", "Nearest Data Start")
+//        Log.e("mapApplication", "Nearest" + index + "," + nestedIndex)
+//        Log.e(
+//            "mapApplication",
+//            "Nearest Current Coordinates: " + lastCurrentLocation.latitude + "," + lastCurrentLocation.longitude
+//        )
+//        Log.e(
+//            "mapApplication",
+//            "Nearest Coordinates List: " + Gson().toJson(listOfChunks.get(index))
+//        )
+//        Log.e(
+//            "mapApplication",
+//            "More Nearest Coordinate: " + Gson().toJson(listOfChunks.get(index).get(nestedIndex))
+//        )
+//        Log.e("mapApplication", "Nearest Data End")
+        return Pair(index, nestedIndex)
+    }
+
+
+    private fun addMarker(point: Point) {
+        val pointAnnotationManager: PointAnnotationManager =
+            mapView.annotations.createPointAnnotationManager()
+
+        // Set marker position (latitude and longitude)
+        // Create a marker annotation
+        val pointAnnotationOptions = PointAnnotationOptions().withPoint(point)
+            .withIconImage(getBitmapFromMipmap(R.mipmap.location))
+
+        pointAnnotationManager.create(pointAnnotationOptions)
+    }
+
+    private fun getBitmapFromMipmap(resourceId: Int): Bitmap {
+        return BitmapFactory.decodeResource(context.resources, resourceId)
+    }
+
+
+    fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val R = 6371000.0 // Earth radius in meters
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(Math.toRadians(lat1)) * Math.cos(
+            Math.toRadians(lat2)
+        ) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return R * c
+    }
+
+    fun haversineInMeter(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val R = 6371.0  // Radius of the Earth in kilometers
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a =
+            sin(dLat / 2) * sin(dLat / 2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(
+                dLon / 2
+            ) * sin(dLon / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        val distance = R * c
+        return "%.3f".format(distance).toDouble()
+
+    }
+
+
+    // Function to calculate the total Haversine distance for a list of lists of Points
+    fun calculateTotalHaversineDistance(listOfCoordinates: List<Point>): Double {
+        var totalDistance = 0.0
+
+        // Iterate over each list of points
+//        for (coordinateList in listOfCoordinates) {
+        for (i in 0 until listOfCoordinates.size - 1) {
+            val point1 = listOfCoordinates[i]
+            val point2 = listOfCoordinates[i + 1]
+            totalDistance += haversineInMeter(
+                point1.latitude(), point1.longitude(), point2.latitude(), point2.longitude()
+            )
+//            }
+        }
+
+        return totalDistance
+    }
+
+    // Function to calculate travel time based on speed (in km/h)
+    fun calculateTravelTime(distance: Double, speed: Double): Double {
+        return distance / speed  // Time in hours
+    }
+
+
+    private fun calculateTimeAndDistance(list: List<Point>) {
+        val totalDistance = calculateTotalHaversineDistance(list)
+
+// Adjusting travel time based on different speeds
+        val walkingSpeed = 5.0  // km/h
+        val cyclingSpeed = 15.0 // km/h
+        val drivingSpeed = 30.0 // km/h
+
+        val walkingTime = calculateTravelTime(totalDistance, walkingSpeed)
+        val cyclingTime = calculateTravelTime(totalDistance, cyclingSpeed)
+        val drivingTime = calculateTravelTime(totalDistance, drivingSpeed)
+
+//        Log.e("mapApplication", "Total Distance: $totalDistance km")
+//        Log.e("mapApplication", "Walking Time: $walkingTime hours")
+//        Log.e("mapApplication", "Cycling Time: $cyclingTime hours")
+//        Log.e("mapApplication", "Driving Time: $drivingTime hours")
+    }
+
+    /*   fun calculateVincentyDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+           val geoData = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
+           return geoData.s12 / 1000  // Distance in kilometers
+       }
+
+       fun calculateTotalVincentyDistance(listOfCoordinates: List<Pair<Double, Double>>): Double {
+           var totalDistance = 0.0
+           for (i in 0 until listOfCoordinates.size - 1) {
+               val point1 = listOfCoordinates[i]
+               val point2 = listOfCoordinates[i + 1]
+               totalDistance += calculateVincentyDistance(
+                   point1.first,
+                   point1.second,
+                   point2.first,
+                   point2.second
+               )
+           }
+           return totalDistance
+       }*/
 }

@@ -2,6 +2,7 @@ package com.karwa.mdtnavigation
 
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.PolyUtil
+import com.mapbox.geojson.Point
 
 class DummyContent {
     companion object {
@@ -787,3 +788,8 @@ class DummyContent {
         }
     }
 }
+
+data class LatLngTracking(
+    var isTrackDone: Boolean = false,
+    var listOfLatLng: MutableList<Point>
+)
