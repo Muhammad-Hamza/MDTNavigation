@@ -18,39 +18,53 @@
             app:mapbox_scaleBarEnabled="false">
 
             <LinearLayout
-                android:orientation="vertical"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-                <com.mapbox.navigation.ui.maneuver.view.MapboxManeuverView
-                    android:id="@+id/maneuverView"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="100dp"
-                    android:layout_marginStart="30dp"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginEnd="50dp"
-                    android:clickable="false"
-                    android:focusable="false"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.mapbox.navigation.ui.maneuver.view.MapboxManeuverView
+                        android:id="@+id/maneuverView"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="100dp"
+                        android:layout_marginStart="30dp"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginEnd="50dp"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
+
+                    <ImageView
+                        android:id="@+id/ivCancel"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_margin="8dp"
+                        android:src="@android:drawable/ic_menu_close_clear_cancel"/>
+                </LinearLayout>
 
                 <Button
                     android:id="@+id/btnOffRoute"
                     android:layout_width="wrap_content"
-                    android:visibility="gone"
-                    android:textColor="@color/white"
-                    android:backgroundTint="@color/colorPrimary"
                     android:layout_height="wrap_content"
-                    android:text="Off route, Click to route"/>
+                    android:backgroundTint="@color/colorPrimary"
+                    android:text="Off route, Click to route"
+                    android:textColor="@color/white"
+                    android:visibility="gone" />
 
                 <Button
                     android:id="@+id/btnDrawNextLayout"
                     android:layout_width="wrap_content"
-                    android:visibility="gone"
-                    android:textColor="@color/white"
-                    android:backgroundTint="@color/colorPrimary"
                     android:layout_height="wrap_content"
-                    android:text="Draw Next Path"/>
+                    android:backgroundTint="@color/colorPrimary"
+                    android:text="Draw Next Path"
+                    android:textColor="@color/white"
+                    android:visibility="gone" />
             </LinearLayout>
         </com.mapbox.maps.MapView>
 

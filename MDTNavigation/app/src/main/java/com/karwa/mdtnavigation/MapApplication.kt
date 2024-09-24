@@ -203,13 +203,15 @@ class MapApplication constructor(
                 "Update",
                 "Fraction traveled: ${routeProgress.fractionTraveled}"
             )
+
             val fractionTraveled = routeProgress.fractionTraveled
             updateProgressOnTheMap(routeProgress)
             val arrival = Calendar.getInstance()
             arrival.add(Calendar.SECOND, routeProgress.durationRemaining.toInt())
 
-            updateApplicationState(routeProgress, arrival)
-
+            if (lastSpeed > 0) {
+                updateApplicationState(routeProgress, arrival)
+            }
             if (lastCurrentLocation != null) {
                 val distanceInMeters = SphericalUtil.computeDistanceBetween(
                     LatLng(
@@ -646,7 +648,7 @@ class MapApplication constructor(
             nextRouteButton.visibility = View.GONE
 //            Toast.makeText(context, "Trip demostration Completed", Toast.LENGTH_SHORT).show()
             stopListenerThing()
-            onDone()
+//            onDone()
         }
     }
 

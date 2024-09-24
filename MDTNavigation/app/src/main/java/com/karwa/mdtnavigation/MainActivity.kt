@@ -109,6 +109,9 @@ class MainActivity : AppCompatActivity() {
         }
 
 
+        binding.ivCancel.setOnClickListener({
+            finish()
+        })
         binding.btnOffRoute.setOnClickListener({
             looger.logSelectContent("Button Click", "Off Route", "Off Route button clicked")
             mapApplication?.calculateOffRouting()
