@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "899970016579",
+    "project_id": "mdt-navigation",
+    "storage_bucket": "mdt-navigation.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:899970016579:android:704e7998e37e477d237bf6",
+        "android_client_info": {
+          "package_name": "com.karwa.mdtnavigation"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQKiyGaomSoXLPz3QbtVmxSIFZxlwdhdI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

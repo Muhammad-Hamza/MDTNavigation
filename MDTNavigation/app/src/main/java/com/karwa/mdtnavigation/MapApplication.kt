@@ -13,7 +13,9 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.LatLng
 import com.google.gson.Gson
+import com.google.maps.android.PolyUtil
 import com.google.maps.android.SphericalUtil
+import com.karwa.mdtnavigation.log.FirebaseLogger
 import com.karwa.mdtnavigation.model.ChunkModel
 import com.karwa.mdtnavigation.model.getDistance
 import com.mapbox.android.core.location.LocationEngine
@@ -97,7 +99,9 @@ class MapApplication constructor(
     var mapView: MapView,
     var maneuverView: MapboxManeuverView?,
     var offRouteButton: Button,
-    var nextRouteButton: Button
+    var nextRouteButton: Button,
+    var logger: FirebaseLogger,
+    val onDone: () -> Unit
 ) : KLocationObserver {
     private var destination: Point? = null
 
@@ -111,6 +115,7 @@ class MapApplication constructor(
     val MAPBOX_ACCESS_TOKEN = mapView.context.getString(R.string.mapbox_access_token)
 
     var lastCurrentLocation: LatLng? = null
+    var lastSpeed: Float = 0f
     private var lastDestinationCurrentPoint: Point? = null
     private var lastDestinationOverallPoint: Point? = null
     private lateinit var context: Context
@@ -192,33 +197,17 @@ class MapApplication constructor(
      */
     private val routeProgressObserver: RouteProgressObserver =
         RouteProgressObserver { routeProgress -> // update the camera position to account for the progressed fragment of the route
-//            Log.d("MapApplication", "---------------")
+            logger.logSelectContent(
+                "Route Progress",
+                "Update",
+                "Fraction traveled: ${routeProgress.fractionTraveled}"
+            )
             val fractionTraveled = routeProgress.fractionTraveled
-//            Log.d("MapApplication", "Fraction Traveled: $fractionTraveled")
-
-            val traveledDistance = routeProgress.distanceTraveled
-            val remainingDistance = routeProgress.distanceRemaining
-            // Update the map with the current progress (arrows, polylines, etc.)
-//            updateProgressOnTheMap(routeProgress)
-
-//            val remainingDistance = routeProgress.distanceRemaining
-//            val remainingTime = routeProgress.durationRemaining
-
-//            Log.d("MapApplication", "Remaining Distance: $remainingDistance meters")
-//            Log.d("MapApplication", "Remaining Time: $remainingTime seconds")
-//            Log.d("MapApplication", "Route Progress State: ${routeProgress.currentState}")
-//
             updateProgressOnTheMap(routeProgress)
             val arrival = Calendar.getInstance()
             arrival.add(Calendar.SECOND, routeProgress.durationRemaining.toInt())
 
-//            if (routeProgress.currentState == RouteProgressState.COMPLETE || remainingDistance <= 10) {
-//                Log.d("MapApplication", "Route is complete or vehicle is near the destination.")
-//                onUserApproachingDestination()
-//            }
-
             updateApplicationState(routeProgress, arrival)
-//            updateRouteLine(traveledDistance, remainingDistance, routeProgress.navigationRoute)
 
             if (lastCurrentLocation != null) {
                 val distanceInMeters = SphericalUtil.computeDistanceBetween(
@@ -226,36 +215,47 @@ class MapApplication constructor(
                         lastCurrentLocation!!.latitude, lastCurrentLocation!!.longitude
                     ), LatLng(destination!!.latitude(), destination!!.longitude())
                 )
-//                Log.d(
-//                    "MapApplication",
-//                    "Current LatLng: ${lastCurrentLocation!!.latitude}, ${lastCurrentLocation!!.longitude}"
-//                )
-                Log.d("MapApplication", "Distance:: ${distanceInMeters}")
 
+                Log.e("mapApplication", "Remaining Distance: " + distanceInMeters)
 
                 if (distanceInMeters < 150.0) {
-                    nextRouteButton.visibility = View.VISIBLE
+                    if (!isLastRound()) {
+                        if (nextRouteButton.visibility == View.GONE)
+                            nextRouteButton.visibility = View.VISIBLE
+                    } else {
+                        if (nextRouteButton.visibility == View.VISIBLE)
+                            nextRouteButton.visibility = View.GONE
+                    }
                 } else {
                     nextRouteButton.visibility = View.GONE
                 }
-                if (fractionTraveled >= 0.80) {
-                    if (isLastRound()) {
-                        if (fractionTraveled >= 0.96) {
-                            startNextRoute(true)
-                        }
-                    } else {
-//                        Log.d(
-//                            "MapApplication",
-//                            "User is almost approaching to the section destination"
-//                        )
+                if (isLastRound()) {
+                    if (fractionTraveled >= 0.96 || distanceInMeters < 50.0) {
                         startNextRoute(true)
+                    }
+                } else {
+                    if (fractionTraveled >= 0.80) {
+                        if (isOffRoute) {
+                            isOffRoute = false
+                        }
+//                        if (isLastRound()) {
+//                            if (fractionTraveled >= 0.96) {
+//                                startNextRoute(true)
+//                            }
+//                        } else {
+                        startNextRoute(true)
+//                        }
                     }
                 }
             }
-
         }
 
     private fun updateApplicationState(routeProgress: RouteProgress, arrival: Calendar) {
+        logger.logSelectContent(
+            "App State",
+            "Route Progress",
+            "Route progress state update -> remaining distance: ${routeProgress.distanceRemaining}"
+        )
         if (routeProgress.currentState == RouteProgressState.COMPLETE || routeProgress.fractionTraveled >= 1.0) {
             ApplicationStateData.getInstance().txtArrivalTime = ("--:--")
             ApplicationStateData.getInstance().arrivalTime = (0)
@@ -277,26 +277,30 @@ class MapApplication constructor(
                     "%1$02d:%2$02d", arrival.get(Calendar.HOUR_OF_DAY), arrival.get(Calendar.MINUTE)
                 ))
             } else {
-                var chunkDistance = listOfChunks.getDistance()
-//                var newDistance =
-//                    routeProgress.distanceTraveled + routeProgress.distanceRemaining + chunkDistance
-                Log.e("distance", "Travel Distance:::        " + routeProgress.distanceTraveled)
-                Log.e("distance", "Remaining Distance:::     " + routeProgress.distanceRemaining)
+                val totalRemainingDistance =
+                    routeProgress.distanceRemaining.toDouble() + listOfChunks.getDistance(isOffRoute)
                 ApplicationStateData.getInstance().txtRemainingDistance =
-                    (formatDistance(routeProgress.distanceRemaining.toDouble() + chunkDistance))
-//                Log.e("distance", "new remaining Distance::: " + newDistance)
-//                ApplicationStateData.getInstance().txtRemainingDistance =
-//                    (formatDistance(routeProgress.distanceRemaining.toDouble() + chunkDistance)) + "/" + (formatDistance(
-//                        newDistance
-//                    ))
+                    (formatDistance(routeProgress.distanceRemaining.toDouble() + totalRemainingDistance))
+
+
+                val remainingTimeInHour =
+                    calculateTravelTime(totalRemainingDistance, lastSpeed.toDouble())
 
                 ApplicationStateData.getInstance().txtRemainingTime =
-                    (formatTime(routeProgress.durationRemaining))
+                    (formatTime(remainingTimeInHour))
 
-                ApplicationStateData.getInstance().setEtaToStop(routeProgress.durationRemaining)
-                ApplicationStateData.getInstance().arrivalTime = (arrival.timeInMillis)
+                ApplicationStateData.getInstance().setEtaToStop(remainingTimeInHour)
+
+                val arrivalTimeCalendar = Calendar.getInstance()
+
+                arrivalTimeCalendar.timeInMillis =
+                    System.currentTimeMillis() + (remainingTimeInHour * 1000).toLong()
+
+                ApplicationStateData.getInstance().arrivalTime = (arrivalTimeCalendar.timeInMillis)
                 ApplicationStateData.getInstance().txtArrivalTime = (String.format(
-                    "%1$02d:%2$02d", arrival.get(Calendar.HOUR_OF_DAY), arrival.get(Calendar.MINUTE)
+                    "%1$02d:%2$02d",
+                    arrivalTimeCalendar.get(Calendar.HOUR_OF_DAY),
+                    arrivalTimeCalendar.get(Calendar.MINUTE)
                 ))
             }
         }
@@ -348,6 +352,7 @@ class MapApplication constructor(
                 viewportDataSource.evaluate()
             }
         } else {
+            logger.logSelectContent("RoutesObserver", "No Route", "No navigation route found")
             clearRoutesAndArrow()
         }
 
@@ -443,11 +448,8 @@ class MapApplication constructor(
 
     private val offRouteProgressObserver: OffRouteObserver = OffRouteObserver { isOffRoute ->
         if (isOffRoute) {
-//            Log.d("MapApplication", "Vehicle went off-route, recalculating route.")
-            // You can either force recalculation or check the remaining distance manually
+            logger.logSelectContent("Off Route", "OffRoute Detected", "Vehicle went off-route")
             offRouteButton.visibility = View.VISIBLE
-        } else {
-//            Log.d("MapApplication", "Vehicle none off-route")
         }
     }
 
@@ -544,6 +546,7 @@ class MapApplication constructor(
             destination?.let { navigateToFixedRoute(it, encodedPath, context) }
             isNavigationInProgress = true
         } catch (e: Exception) {
+            logger.logSelectContent("startNavigation", "Exception", e.message!!)
             e.printStackTrace()
         }
     }
@@ -565,6 +568,8 @@ class MapApplication constructor(
                 lineWidth(10.0)        // Set the polyline width
             }
 
+            logger.logSelectContent("Polyline", "Draw", "Drawing polyline on the map")
+
             style.addLayerBelow(lineLayer, "mapbox-masking-layer-main")
         }
 
@@ -573,19 +578,12 @@ class MapApplication constructor(
     @SuppressLint("MissingPermission")
     fun navigateToFixedRoute(destination: Point, encodedPath: String?, context: Context) {
         this.context = context
-//        val originLocation = ApplicationStateData.getInstance().getCurrentLocation()
-//        val originPoint = Point.fromLngLat(
-//            originLocation!!.longitude, originLocation!!.latitude
-//        )
 
         stopListenerThing()
 
-        val list = DummyContent.listOfTTestLatLng()
-//        val list = PolyUtil.decode(encodedPath)
+//        val list = DummyContent.listOfTTestLatLng()
 
-//        Log.e("MapApplication", Gson().toJson(list.size.toString()))
-//        Log.e("MapApplication", Gson().toJson(list.first()))
-//        Log.e("MapApplication", Gson().toJson(list.last()))
+        val list = PolyUtil.decode(encodedPath)
 
         val finalList = mutableListOf<Point>()
         for (i in 0 until list.size - 1) {
@@ -594,17 +592,16 @@ class MapApplication constructor(
 
         lastDestinationOverallPoint = finalList.last()
         drawSimplePolyline(finalList)
-        calculateTimeAndDistance(finalList)
 
         listOfChunks = ArrayList(finalList.chunked(15).map {
-            var distance = calculateTotalHaversineDistance(it)
-            Log.e("distance", "Distance::: " + distance)
-            ChunkModel(list = ArrayList(it), linearDistanceInMeter = distance)
+            ChunkModel(
+                list = ArrayList(it),
+                linearDistanceInMeter = calculateTotalHaversineDistance(it)
+            )
         })
 
         addMarker(finalList.last())
 
-        Log.e("mapApplication", "Calling from navigateToFixedRoute()")
         updateListRoute(false, {})
     }
 
@@ -613,6 +610,12 @@ class MapApplication constructor(
         onSuccessfullDraw: () -> Unit
     ) {
         if ((currentIndex + 1) < listOfChunks.size) {
+
+            logger.logSelectContent(
+                "Route",
+                "Update List",
+                "Updating route list for the next segment"
+            )
 
             currentIndex = currentIndex + 1
             lastDestinationCurrentPoint = listOfChunks.get(currentIndex).list.last()
@@ -631,9 +634,12 @@ class MapApplication constructor(
 
             findRoute(onSuccessfullDraw)
         } else {
-            Toast.makeText(context, "Trip demostration Completed", Toast.LENGTH_SHORT).show()
-//            Log.e("MapApplication", "NO Route Found")
+            logger.logSelectContent("Route", "Complete", "Route demonstration completed")
+            offRouteButton.visibility = View.GONE
+            nextRouteButton.visibility = View.GONE
+//            Toast.makeText(context, "Trip demostration Completed", Toast.LENGTH_SHORT).show()
             stopListenerThing()
+            onDone()
         }
     }
 
@@ -759,32 +765,7 @@ class MapApplication constructor(
 
     }
 
-
-    private fun filterClosePoints(points: List<Point>, distanceThreshold: Double): List<Point> {
-        val filteredPoints = mutableListOf<Point>()
-        points.forEachIndexed { index, point ->
-            if (index == 0 || index == points.size - 1) {
-                filteredPoints.add(point)
-            } else {
-                val previousPoint = points[index - 1]
-                val distance = haversine(
-                    previousPoint.latitude(),
-                    previousPoint.longitude(),
-                    point.latitude(),
-                    point.longitude()
-                )
-                if (distance >= distanceThreshold) {
-                    filteredPoints.add(point)
-                }
-            }
-        }
-        return filteredPoints
-    }
-
     private fun findRoute(onSuccessfullDraw: () -> Unit) {
-
-//        Log.d("MapApplication", "Current LatLng List: ${currentList.size}")
-//        Log.d("MapApplication", "Current LatLng List: ${currentIndex}")
 
         if (navigationRouteId != null) {
             mapboxNavigation.cancelRouteRequest(navigationRouteId!!)
@@ -793,22 +774,13 @@ class MapApplication constructor(
 
         startListenerThing()
 
-//        Log.e("MapApplication", (0 until currentList.size).toList().toString())
-//        Log.e("MapApplication", "Size: " + (currentList.size).toString())
-//        Log.e(
-//            "MapApplication",
-//            "Coordinate: " + currentList.last().latitude() + "," + currentList.last().longitude()
-//        )
-//        val list = currentList.subList(1, currentList.size - 1)
+        logger.logSelectContent("Route", "Find", "Requesting route with waypoints")
 
         navigationRouteId =
             mapboxNavigation.requestRoutes(RouteOptions.builder().applyDefaultNavigationOptions()
                 .applyLanguageAndVoiceUnitOptions(context)
-//                .coordinates(origin = currentList.first(), destination = currentList.last())
                 .coordinatesList(currentList)
                 .waypointIndicesList(listOf(0, currentList.size - 1))
-//                .waypointTargetsList(currentList)
-//                .waypointIndicesList((0 until currentList.size).toMutableList())
                 .profile(DirectionsCriteria.PROFILE_DRIVING).bannerInstructions(true)
                 .annotationsList(
                     listOf(
@@ -822,20 +794,11 @@ class MapApplication constructor(
                     override fun onRoutesReady(
                         routes: List<NavigationRoute>, routerOrigin: RouterOrigin
                     ) {
-//                        Log.d(
-//                            "Route Info",
-//                            "Route geometry: ${routes.first().routeOptions.geometries()}"
-//                        )
-//                        Log.e("Instruction", "${currentIndex}==${listOfChunks.size - 1}")
                         val newRoutes = if (isLastRound()) {
                             routes
                         } else {
                             Utils.updateContent(routes)
                         }
-//                    val gsopnData = Gson().toJson(routerOrigin)
-                        val gsopnData1 = Gson().toJson(newRoutes)
-//                        Log.e("Instruction", gsopnData1)
-
                         setRouteAndStartNavigation(listOf(newRoutes.first()))
                         renderRouteOnMap(newRoutes.first())
                         isNavigationInProgress = true
@@ -845,12 +808,18 @@ class MapApplication constructor(
                     override fun onFailure(
                         reasons: List<RouterFailure>, routeOptions: RouteOptions
                     ) {
+                        logger.logSelectContent(
+                            "requestRoutes",
+                            "onFailure",
+                            Gson().toJson(reasons)
+                        )
                         Log.e("MapApplication", "onFailure")
                     }
 
                     override fun onCanceled(
                         routeOptions: RouteOptions, routerOrigin: RouterOrigin
                     ) { // no impl
+                        logger.logSelectContent("requestRoutes", "onCanceled", "Route cancelled")
                         Log.e("MapApplication", "onCanceled")
                     }
                 })
@@ -881,10 +850,8 @@ class MapApplication constructor(
     fun onStart() {
 
         if (::mapboxNavigation.isInitialized && mapboxNavigation.isDestroyed.not()) {
-            //and recenter camera in Trip Session
             drawFirstTime = true
             startListenerThing()
-            //processNavigation()
         } else {
 
         }
@@ -920,6 +887,7 @@ class MapApplication constructor(
     }
 
     fun onStop() {
+        logger.logSelectContent("Lifecycle", "onStop", "onStop called")
         if (::mapboxNavigation.isInitialized || mapboxNavigation.isDestroyed.not()) {
             mapboxNavigation.resetTripSession()
             mapboxNavigation.setNavigationRoutes(emptyList())
@@ -928,31 +896,29 @@ class MapApplication constructor(
             speechApi.cancel()
             voiceInstructionsPlayer.shutdown()
             clearRoutesAndArrow()
+            logger.logSelectContent(
+                "Navigation",
+                "onStop",
+                "Navigation session stopped and listeners unregistered"
+            )
         }
     }
 
     fun onResume() {
+        logger.logSelectContent("Lifecycle", "onResume", "onResume called")
         if (::mapboxNavigation.isInitialized || mapboxNavigation.isDestroyed.not()) {
 
             onStart()
             if (isNavigationInProgress == true) {
                 drawRouteAgain()
+                logger.logSelectContent("Route", "drawRouteAgain", "Route redrawn")
             }
         }
     }
 
-//    fun stopNavigation() {
-//
-//        unregisterObservers()
-//        clearRoutesAndArrow()
-//
-//
-//    }
-
     companion object {
         private val TAG = MapApplication::class.java.simpleName
     }
-
 
     private fun formatTime(seconds: Double): String {
         if (seconds < 60) {
@@ -973,7 +939,6 @@ class MapApplication constructor(
         }
     }
 
-
     private fun formatDistance(meters: Double): String {
         return if (meters < 1000) {
             String.format("%.0f m", meters);
@@ -986,50 +951,32 @@ class MapApplication constructor(
 
     override fun onNewLocation(location: Location?) {
         location?.let {
-            if (it.bearing > 0) {
-                lastCurrentLocation = LatLng(it.latitude, it.longitude)
-                navigationLocationProvider.changePosition(
-                    location = it,
-                    keyPoints = emptyList(),
-                )
+            if (it.speed > 0f) {
+                if (it.bearing > 0) {
+                    lastCurrentLocation = LatLng(it.latitude, it.longitude)
+                    lastSpeed = location.speed
+                    navigationLocationProvider.changePosition(
+                        location = it,
+                        keyPoints = emptyList(),
+                    )
 
-                if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
-                    mapCameraRecenterTimer = System.currentTimeMillis()
-
-                    if (isFirstTime) {
-                        isFirstTime = false
-                        viewportDataSource.followingZoomPropertyOverride(17.0)
-                        viewportDataSource.followingPadding =
-                            EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
+                    if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
+                        mapCameraRecenterTimer = System.currentTimeMillis()
+                        if (isFirstTime) {
+                            isFirstTime = false
+                            viewportDataSource.followingZoomPropertyOverride(17.0)
+                            viewportDataSource.followingPadding =
+                                EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
+                        }
                     }
+                    navigationCamera.requestNavigationCameraToFollowing()
+                    viewportDataSource.onLocationChanged(it)
+                    viewportDataSource.evaluate()
+                } else {
+//                    Log.e("Location", Gson().toJson(location))
                 }
-                navigationCamera.requestNavigationCameraToFollowing()
-                viewportDataSource.onLocationChanged(it)
-                viewportDataSource.evaluate()
             }
         }
-    }
-
-//    private fun onUserReachedDestination() {
-//        stopNavigation()
-//        Log.d("MapApplication", "User has arrived at the destination!")
-//    }
-
-    fun setCurrentLocation(location: Location?) {
-        location?.let {
-            mapView.getMapboxMap().easeTo(
-                CameraOptions.Builder()
-                    .center(Point.fromLngLat(location.longitude, location.latitude)).zoom(17.0)
-                    .padding(EdgeInsets(500.0, 0.0, 0.0, 0.0)).build()
-            )
-
-
-        }
-    }
-
-
-    fun registerCameraMoveLocationObserver(listener: OnCameraIdleListener) {
-        onCameraIdleListener = listener
     }
 
     interface OnCameraIdleListener {
@@ -1042,7 +989,7 @@ class MapApplication constructor(
 
     fun calculateOffRouting() {
         isOffRoute = true
-        //Need to calcualte off routing functionality
+        logger.logSelectContent("Navigation", "OffRoute", "Off-route calculation started")
         offRouteButton.visibility = View.GONE
 
         if (listOfChunks != null && listOfChunks.size > 0) {
@@ -1051,34 +998,33 @@ class MapApplication constructor(
 //                var index = -1 //findNearestChunk(listOfChunks, lastCurrentLocation!!)
                 var (index, nestedIndex) = findNearestChunk(listOfChunks, lastCurrentLocation!!)
 
-
                 index = if (index == -1) (listOfChunks.size - 1) else index
-                nestedIndex = if (nestedIndex == -1) 0 else nestedIndex
+//                nestedIndex = if (nestedIndex == -1) 0 else nestedIndex
 
-                val chunk = listOfChunks[index]
-
-                // Calculate distances before and after the nearest point
-                val distanceBefore = if (nestedIndex > 0) {
-                    haversine(
-                        lastCurrentLocation!!.latitude,
-                        lastCurrentLocation!!.longitude,
-                        chunk.list[nestedIndex - 1].latitude(),
-                        chunk.list[nestedIndex - 1].longitude()
-                    )
-                } else {
-                    Double.MAX_VALUE  // No point before, set to a high value
-                }
-
-                val distanceAfter = if (nestedIndex < chunk.list.size - 1) {
-                    haversine(
-                        lastCurrentLocation!!.latitude,
-                        lastCurrentLocation!!.longitude,
-                        chunk.list[nestedIndex + 1].latitude(),
-                        chunk.list[nestedIndex + 1].longitude()
-                    )
-                } else {
-                    Double.MAX_VALUE  // No point after, set to a high value
-                }
+//                val chunk = listOfChunks[index]
+//
+//                // Calculate distances before and after the nearest point
+//                val distanceBefore = if (nestedIndex > 0) {
+//                    haversine(
+//                        lastCurrentLocation!!.latitude,
+//                        lastCurrentLocation!!.longitude,
+//                        chunk.list[nestedIndex - 1].latitude(),
+//                        chunk.list[nestedIndex - 1].longitude()
+//                    )
+//                } else {
+//                    Double.MAX_VALUE  // No point before, set to a high value
+//                }
+//
+//                val distanceAfter = if (nestedIndex < chunk.list.size - 1) {
+//                    haversine(
+//                        lastCurrentLocation!!.latitude,
+//                        lastCurrentLocation!!.longitude,
+//                        chunk.list[nestedIndex + 1].latitude(),
+//                        chunk.list[nestedIndex + 1].longitude()
+//                    )
+//                } else {
+//                    Double.MAX_VALUE  // No point after, set to a high value
+//                }
 
 //                val list = ArrayList<Point>()
 //                list.add(
@@ -1094,49 +1040,58 @@ class MapApplication constructor(
                 if (index != -1) {
                     currentIndex = if (index == 0) 0 else index - 1
                     // Insert based on which neighboring distance is smaller
-                    if (currentList.size < 24) {
-                        if (distanceBefore < distanceAfter) {
-                            // Insert above the nearest point (before nestedIndex)
-                            listOfChunks.get(currentIndex).list.add(
-                                nestedIndex,
-                                Point.fromLngLat(
-                                    lastCurrentLocation!!.longitude,
-                                    lastCurrentLocation!!.latitude
-                                )
-                            )
-//                            Log.e(
-//                                "mapApplication",
-//                                "Nearest: Inserted at position above nearest index"
-//                            )
-                        } else {
-                            // Insert below the nearest point (after nestedIndex)
-                            listOfChunks.get(currentIndex + 1).list.add(
-                                nestedIndex,
-                                Point.fromLngLat(
-                                    lastCurrentLocation!!.longitude,
-                                    lastCurrentLocation!!.latitude
-                                )
-                            )
-//                            Log.e(
-//                                "mapApplication",
-//                                "Nearest: Inserted at position below nearest index"
-//                            )
-                        }
-                    }
-
-//                    Log.e(
-//                        "mapApplication",
-//                        "Nearest Coordinates List: " + Gson().toJson(listOfChunks.get(index))
-//                    )
+                    /*                    if (currentList.size < 24) {
+                                            if (distanceBefore < distanceAfter) {
+                                                // Insert above the nearest point (before nestedIndex)
+                                                listOfChunks.get(currentIndex).list.add(
+                                                    nestedIndex,
+                                                    Point.fromLngLat(
+                                                        lastCurrentLocation!!.longitude,
+                                                        lastCurrentLocation!!.latitude
+                                                    )
+                                                )
+                    //                            Log.e(
+                    //                                "mapApplication",
+                    //                                "Nearest: Inserted at position above nearest index"
+                    //                            )
+                                            } else {
+                                                // Insert below the nearest point (after nestedIndex)
+                                                listOfChunks.get(currentIndex + 1).list.add(
+                                                    nestedIndex,
+                                                    Point.fromLngLat(
+                                                        lastCurrentLocation!!.longitude,
+                                                        lastCurrentLocation!!.latitude
+                                                    )
+                                                )
+                                            }
+                    }*/
+                    logger.logSelectContent(
+                        "Navigation",
+                        "OffRoute",
+                        "Starting next route after recalculating off-route"
+                    )
                     startNextRoute(false)
-//                    Log.e("mapApplication", "OffRoute: Nearest: " + index)
                 } else {
+                    logger.logSelectContent(
+                        "Navigation",
+                        "OffRouteError",
+                        "Location not found in any coordinates"
+                    )
                     Log.e("mapApplication", "location not found in any coordinates")
                 }
             } else {
-                //User at last round
+                logger.logSelectContent(
+                    "Navigation",
+                    "OffRoute",
+                    "Reached last round, no further off-route calculation"
+                )
             }
         } else {
+            logger.logSelectContent(
+                "Navigation",
+                "OffRouteError",
+                "No data found in chunks for off-route"
+            )
             Log.e("mapApplication", "No Data found")
         }
     }
@@ -1154,31 +1109,72 @@ class MapApplication constructor(
     fun findNearestChunk(
         listOfChunks: List<ChunkModel>, lastCurrentLocation: LatLng
     ): Pair<Int, Int> {
-        var shortestDistance = Double.MAX_VALUE
+//        var shortestDistance = Double.MAX_VALUE
         var index: Int = -1
         var nestedIndex: Int = -1
 
-        for (chunkIndex in listOfChunks.indices) {
-            if (!listOfChunks[chunkIndex].isVisited) {
-                val chunk = listOfChunks[chunkIndex]
-                for (pointIndex in chunk.list.indices) {
-                    val point = chunk.list[pointIndex]
+        if ((listOfChunks.size - 1) != currentIndex) {
+            listOfChunks.get(currentIndex + 1).list.add(
+                0,
+                Point.fromLngLat(lastCurrentLocation.longitude, lastCurrentLocation.latitude)
+            )
+            index = currentIndex + 1
+            nestedIndex = 0
+        } else {
+            //last destination index
+            listOfChunks.get(currentIndex).list.add(
+                0,
+                Point.fromLngLat(lastCurrentLocation.longitude, lastCurrentLocation.latitude)
+            )
+            index = currentIndex
+            nestedIndex = 0
+        }
 
-                    val distance = haversine(
-                        lastCurrentLocation.latitude,
-                        lastCurrentLocation.longitude,
-                        point.latitude(),
-                        point.longitude()
-                    )
+        /*        for (chunkIndex in listOfChunks.indices) {
+                    if (!listOfChunks[chunkIndex].isVisited) {
+                        val chunk = listOfChunks[chunkIndex]
+                        for (pointIndex in chunk.list.indices) {
+                            val point = chunk.list[pointIndex]
 
-                    if (distance < shortestDistance) {
-                        shortestDistance = distance
-                        nestedIndex = pointIndex
-                        index = chunkIndex
+                            val distance = haversine(
+                                lastCurrentLocation.latitude,
+                                lastCurrentLocation.longitude,
+                                point.latitude(),
+                                point.longitude()
+                            )
+
+                            if (distance < shortestDistance) {
+                                shortestDistance = distance
+                                nestedIndex = pointIndex
+                                index = chunkIndex
+                            }
+                        }
                     }
+                }*/
+
+        if (index > 0) {
+            Log.e("mapApplication", "Index: " + index.toString())
+            for (j in 0..(index - 1)) {
+                Log.e(
+                    "mapApplication",
+                    "${j} = isVisited: " + listOfChunks.get(j).isVisited.toString()
+                )
+                if (!listOfChunks.get(j).isVisited) {
+                    listOfChunks.get(j).isVisited = true
                 }
             }
         }
+
+        logger.logSelectContent(
+            "Navigation",
+            "findNearestChunk",
+            "Nearest chunk found at index: $index and nestedIndex: $nestedIndex"
+        )
+
+        Log.e(
+            "mapApplication",
+            "Nearest chunk found at index: $index and nestedIndex: $nestedIndex"
+        )
         return Pair(index, nestedIndex)
     }
 
@@ -1227,15 +1223,12 @@ class MapApplication constructor(
     fun calculateTotalHaversineDistance(listOfCoordinates: List<Point>): Double {
         var totalDistance = 0.0
 
-        // Iterate over each list of points
-//        for (coordinateList in listOfCoordinates) {
         for (i in 0 until listOfCoordinates.size - 1) {
             val point1 = listOfCoordinates[i]
             val point2 = listOfCoordinates[i + 1]
             totalDistance += haversineInMeter(
                 point1.latitude(), point1.longitude(), point2.latitude(), point2.longitude()
             )
-//            }
         }
 
         return totalDistance
@@ -1243,25 +1236,10 @@ class MapApplication constructor(
 
     // Function to calculate travel time based on speed (in km/h)
     fun calculateTravelTime(distance: Double, speed: Double): Double {
-        return distance / speed  // Time in hours
+        if (speed > 0) {
+            return distance / speed  // Time in hours
+        } else {
+            return distance / 30
+        }
     }
-
-    private fun calculateTimeAndDistance(list: List<Point>) {
-        val totalDistance = calculateTotalHaversineDistance(list)
-
-// Adjusting travel time based on different speeds
-        val walkingSpeed = 5.0  // km/h
-        val cyclingSpeed = 15.0 // km/h
-        val drivingSpeed = 30.0 // km/h
-
-        val walkingTime = calculateTravelTime(totalDistance, walkingSpeed)
-        val cyclingTime = calculateTravelTime(totalDistance, cyclingSpeed)
-        val drivingTime = calculateTravelTime(totalDistance, drivingSpeed)
-
-//        Log.e("mapApplication", "Total Distance: $totalDistance km")
-//        Log.e("mapApplication", "Walking Time: $walkingTime hours")
-//        Log.e("mapApplication", "Cycling Time: $cyclingTime hours")
-//        Log.e("mapApplication", "Driving Time: $drivingTime hours")
-    }
-
 }
