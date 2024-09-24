@@ -103,6 +103,7 @@ class MapApplication constructor(
     var logger: FirebaseLogger,
     val onDone: () -> Unit
 ) : KLocationObserver {
+    private var isAddedTheLastPointIndex = false
     private var destination: Point? = null
 
     var isNavigationInProgress = false
@@ -218,17 +219,17 @@ class MapApplication constructor(
 
                 Log.e("mapApplication", "Remaining Distance: " + distanceInMeters)
 
-                if (distanceInMeters < 150.0) {
-                    if (!isLastRound()) {
-                        if (nextRouteButton.visibility == View.GONE)
-                            nextRouteButton.visibility = View.VISIBLE
-                    } else {
-                        if (nextRouteButton.visibility == View.VISIBLE)
-                            nextRouteButton.visibility = View.GONE
-                    }
-                } else {
-                    nextRouteButton.visibility = View.GONE
-                }
+//                if (distanceInMeters < 150.0) {
+//                    if (!isLastRound()) {
+//                        if (nextRouteButton.visibility == View.GONE)
+//                            nextRouteButton.visibility = View.VISIBLE
+//                    } else {
+//                        if (nextRouteButton.visibility == View.VISIBLE)
+//                            nextRouteButton.visibility = View.GONE
+//                    }
+//                } else {
+//                    nextRouteButton.visibility = View.GONE
+//                }
                 if (isLastRound()) {
                     if (fractionTraveled >= 0.96 || distanceInMeters < 50.0) {
                         startNextRoute(true)
@@ -449,7 +450,11 @@ class MapApplication constructor(
     private val offRouteProgressObserver: OffRouteObserver = OffRouteObserver { isOffRoute ->
         if (isOffRoute) {
             logger.logSelectContent("Off Route", "OffRoute Detected", "Vehicle went off-route")
+//            if (currentIndex != listOfChunks.size - 1) {
             offRouteButton.visibility = View.VISIBLE
+//            } else {
+//                offRouteButton.visibility = View.GONE
+//            }
         }
     }
 
@@ -621,6 +626,8 @@ class MapApplication constructor(
             lastDestinationCurrentPoint = listOfChunks.get(currentIndex).list.last()
 
             currentList = listOfChunks.get(currentIndex).list
+//            Log.e("mapApplication","Size: "+listOfChunks.size)
+//            Log.e("mapApplication","Size: "+currentList.size)
             if (needToAddLocationAtInitial)
                 if (lastCurrentLocation != null) {
                     currentList.add(
@@ -1038,7 +1045,7 @@ class MapApplication constructor(
 //                listOfChunks.add(list)
 //                index = list.size
                 if (index != -1) {
-                    currentIndex = if (index == 0) 0 else index - 1
+                    currentIndex = if (index == 0) 0 else (index - 1)
                     // Insert based on which neighboring distance is smaller
                     /*                    if (currentList.size < 24) {
                                             if (distanceBefore < distanceAfter) {
@@ -1080,11 +1087,25 @@ class MapApplication constructor(
                     Log.e("mapApplication", "location not found in any coordinates")
                 }
             } else {
-                logger.logSelectContent(
-                    "Navigation",
-                    "OffRoute",
-                    "Reached last round, no further off-route calculation"
+
+                val list = ArrayList<Point>()
+                list.add(
+                    Point.fromLngLat(
+                        lastCurrentLocation!!.longitude,
+                        lastCurrentLocation!!.latitude
+                    )
                 )
+                list.add(currentList.last())
+                if (!isAddedTheLastPointIndex) {
+                    isAddedTheLastPointIndex = true
+                    listOfChunks.add(ChunkModel(false, list, 0.0))
+                } else {
+                    listOfChunks.get(currentIndex).list.clear()
+                    listOfChunks.get(currentIndex).list = list
+                    currentIndex = currentIndex - 1
+                }
+
+                startNextRoute(false)
             }
         } else {
             logger.logSelectContent(

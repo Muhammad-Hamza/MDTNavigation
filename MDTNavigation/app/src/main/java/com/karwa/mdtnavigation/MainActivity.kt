@@ -131,7 +131,7 @@ class MainActivity : AppCompatActivity() {
 //                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
 //                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
 //                    Route 1
-//                    val route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
+                    val route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
 
 //                    Second Stop
 //                    val route =  "}oxxCqsiyHoA{DmAuDi@_BIWK[CMe@uAoFuP??h@UfDwAf@S??K[Qi@c@sAK[??"
@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
                     //8th pick
 //                    val route = "g}vxCu|iyH@BBH?HADEDeAb@E@G?ECCEWq@GS??OFUJ??rBhG??MHWH??_@gACCCAAAE?C@E@{B`AC@AD?BAB@B?D\\`A??QHWFK@I@KAIAiAd@GBq@Z??j@`B??"
                     //Destination
-                    val route = "izwxCmmiyHy@\\_A^??Oe@??bCaA~As@d@W??Vv@jCbIXz@HT??MDoBv@cLzE_Bp@YNKDwAj@sB|@sAj@wItDo@VqMlF??oA`AwErBSHEBCBCFCDADAD??HVd@|A~Qfl@tJl[??RZvB|GDN@FBBDDDBBBF@??NGj@UbIoDr@]nHcDFCfAg@|JiELG~EwBdAc@??Tv@nDtMtA`FPn@Nh@J\\hAfE???TATCNIXIV_EhCw@f@s@b@MHaAn@c@Vi@\\UNaAn@??"
+//                    val route = "izwxCmmiyHy@\\_A^??Oe@??bCaA~As@d@W??Vv@jCbIXz@HT??MDoBv@cLzE_Bp@YNKDwAj@sB|@sAj@wItDo@VqMlF??oA`AwErBSHEBCBCFCDADAD??HVd@|A~Qfl@tJl[??RZvB|GDN@FBBDDDBBBF@??NGj@UbIoDr@]nHcDFCfAg@|JiELG~EwBdAc@??Tv@nDtMtA`FPn@Nh@J\\hAfE???TATCNIXIV_EhCw@f@s@b@MHaAn@c@Vi@\\UNaAn@??"
 
                     looger.logSelectContent("Intent", "Route", "Route intent received: $route")
                     Log.e("asd", route)
