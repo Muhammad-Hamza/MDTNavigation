@@ -22,15 +22,15 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <LinearLayout
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="wrap_content">
 
                     <com.mapbox.navigation.ui.maneuver.view.MapboxManeuverView
+                        android:layout_alignParentEnd="true"
+                        android:layout_alignParentRight="true"
                         android:id="@+id/maneuverView"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
+                        android:layout_width="wrap_content"
                         android:layout_height="100dp"
                         android:layout_marginStart="30dp"
                         android:layout_marginTop="10dp"
@@ -40,22 +40,46 @@
                         android:visibility="gone"
                         tools:visibility="visible" />
 
-                    <ImageView
-                        android:id="@+id/ivCancel"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
+                    <LinearLayout
+                        android:layout_alignParentStart="true"
+                        android:layout_alignParentLeft="true"
+                        android:layout_width="50dp"
+                        android:layout_height="50dp"
                         android:layout_margin="8dp"
-                        android:src="@android:drawable/ic_menu_close_clear_cancel"/>
-                </LinearLayout>
+                        android:background="@drawable/ic_round_circle"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="10dp">
 
-                <Button
-                    android:id="@+id/btnOffRoute"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:backgroundTint="@color/colorPrimary"
-                    android:text="Off route, Click to route"
-                    android:textColor="@color/white"
-                    android:visibility="gone" />
+                        <ImageView
+                            android:id="@+id/ivCancel"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@mipmap/ic_cancel" />
+                    </LinearLayout>
+
+                </RelativeLayout>
+
+                <LinearLayout
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_margin="8dp"
+                    android:background="@drawable/ic_round_circle"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="10dp"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/btnOffRoute"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:backgroundTint="@color/colorPrimary"
+                        android:text="Off route, Click to route"
+                        android:textColor="@color/white"
+                        android:visibility="gone" />
+
+                </LinearLayout>
 
                 <Button
                     android:id="@+id/btnDrawNextLayout"
@@ -65,9 +89,51 @@
                     android:text="Draw Next Path"
                     android:textColor="@color/white"
                     android:visibility="gone" />
+
+
+                <RelativeLayout
+                    android:visibility="gone"
+                    android:id="@+id/rlWaze"
+                    android:layout_width="80dp"
+                    android:layout_margin="16dp"
+                    android:layout_height="80dp">
+
+                    <ImageView
+                        android:id="@+id/btnWaze"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:src="@mipmap/ic_waze_icon"
+                        android:textColor="@color/white" />
+
+<!--                    <com.facebook.shimmer.ShimmerFrameLayout-->
+<!--                        android:id="@+id/shimmer_view_container"-->
+<!--                        android:layout_width="match_parent"-->
+<!--                        android:layout_height="match_parent" />-->
+                </RelativeLayout>
+
             </LinearLayout>
         </com.mapbox.maps.MapView>
 
+        <LinearLayout
+            android:id="@+id/llCurrentLocation"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_above="@id/bottomBarLayout"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentRight="true"
+            android:layout_margin="8dp"
+            android:background="@drawable/ic_round_circle"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <ImageView
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_margin="16dp"
+                android:src="@mipmap/current_location"
+                android:textColor="@color/white" />
+        </LinearLayout>
 
         <include
             android:id="@+id/bottomBarLayout"

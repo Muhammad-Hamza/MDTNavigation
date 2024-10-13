@@ -4,11 +4,15 @@ import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.gson.Gson
 
 class FirebaseLogger private constructor(context: Context) {
 
     private var firebaseAnalytics: FirebaseAnalytics = FirebaseAnalytics.getInstance(context)
+    private val localLogger = LocalLogger(context)
+    val gson = Gson()
 
     init {
         firebaseAnalytics.setUserId(Settings.Secure.ANDROID_ID)
@@ -47,6 +51,10 @@ class FirebaseLogger private constructor(context: Context) {
             putString(FirebaseAnalytics.Param.CONTENT_TYPE, "text")
             putString(FirebaseAnalytics.Param.CONTENT, content)
         }
+        Log.e(itemId, itemName + " : " + content)
         logEvent(FirebaseAnalytics.Event.SELECT_CONTENT, bundle)
+
+        val logMessage = "Event: $itemId, Params: ${gson.toJson(bundle)}"
+        localLogger.logEvent(logMessage)
     }
 }

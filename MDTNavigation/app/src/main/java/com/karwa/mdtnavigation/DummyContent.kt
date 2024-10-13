@@ -4,6 +4,14 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.PolyUtil
 import com.mapbox.geojson.Point
 
+fun LatLng.getPoint(): Point {
+    return Point.fromLngLat(longitude, latitude)
+}
+
+fun Point.getLatLng(): LatLng {
+    return LatLng(latitude(), longitude())
+}
+
 class DummyContent {
     companion object {
         fun listOfTTestLatLng(): List<LatLng> {

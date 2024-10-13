@@ -32,7 +32,6 @@ public class BackgroundLocationService extends Service
 
     public static final String CHANNEL_ID = "1703198712";
     private static final String TAG = "BackgroundLocationService";
-    private static final int THRESHOLD_REQUIRED_ACCURACY = 30;
     private Location lastLocation = null;
 
 
@@ -40,21 +39,8 @@ public class BackgroundLocationService extends Service
     private FusedLocationProviderClient mFusedLocationClient;
     private static boolean isServiceRunning = false;
     private LocationCallback locationCallback;
-
-    private static final float MIN_THRESHOLD_DISTANCE_TO_START_UPDATE_LOCATION_REAL_TIME = 200;
-    private static final float MIN_BUFFER_DISTANCE_TO_UPDATE_LOCATION_ON_CALL = 100;
-    private static final float MIN_DISTANCE_FOR_BEARING = 20;
-
-    private static final float MIN_DISTANCE_COVERED_FOR_HIRED = 500;
-    private static final float MIN_DISTANCE_COVERED_FOR_FREE = 300;
     private static final float MIN_BEARING_CHANGE = 25;
     private static final float MIN_BEARING_CHANGE_IN_NEGATIVE = -25;
-    private static final float MIN_DISTANCE_FOR_LOGGED_OFF = 300;
-
-    private static final float MIN_BUFFER_DISTANCE_TO_UPDATE_LOCATION_FREE = 300f;
-
-    //    private static boolean serviceRunning;
-
 
     @Override
     public void onCreate()
@@ -70,7 +56,7 @@ public class BackgroundLocationService extends Service
 
         setNotificationAndStartForeground();
 
-        return super.onStartCommand(intent, flags, startId);
+        return START_STICKY;
     }
 
     @Override
@@ -182,7 +168,7 @@ public class BackgroundLocationService extends Service
 //
 //        lastLocationSent = sentLocation;
 //        new StatusUpdateResponseProcessorThread(getApplicationContext(), null).start();
-//        ApplicationStateData.getInstance().setLastLocationTime(System.currentTimeMillis());
+//        ApplicationStateData.getInstance().setLastLocaxtionTime(System.currentTimeMillis());
     }
 
     @SuppressLint("MissingPermission")

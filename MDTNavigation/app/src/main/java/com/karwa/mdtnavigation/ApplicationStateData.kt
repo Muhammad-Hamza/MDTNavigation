@@ -61,6 +61,7 @@ import androidx.core.app.ActivityCompat
 
     private fun startServices() {
         startForegroundService(Intent(this, BackgroundLocationService::class.java))
+//        startForegroundService(Intent(this, NewBackgroundLocationService::class.java))
     }
 
     fun getCurrentLocation(): Location {

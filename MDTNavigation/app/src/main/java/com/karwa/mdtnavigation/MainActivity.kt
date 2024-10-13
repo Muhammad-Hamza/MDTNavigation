@@ -4,11 +4,14 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
+import com.facebook.shimmer.Shimmer
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.karwa.mdtnavigation.databinding.MainActivityBinding
@@ -82,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         //initMap()
         looger = FirebaseLogger.getInstance(this)
+        initBlinkingEffect()
         requestLocationPermission =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
                 if (isGranted) {
@@ -109,18 +114,25 @@ class MainActivity : AppCompatActivity() {
         }
 
 
+        binding.llCurrentLocation.setOnClickListener {
+            mapApplication?.calculateOffRouting(true)
+        }
         binding.ivCancel.setOnClickListener({
             finish()
         })
         binding.btnOffRoute.setOnClickListener({
             looger.logSelectContent("Button Click", "Off Route", "Off Route button clicked")
-            mapApplication?.calculateOffRouting()
+            mapApplication?.increaseOffRouteCount()
+            mapApplication?.calculateOffRouting(true)
         })
 
         binding.btnDrawNextLayout.setOnClickListener {
             looger.logSelectContent("Button Click", "Draw Next", "Draw Next Layout button clicked")
             binding.btnDrawNextLayout.visibility = View.GONE
             mapApplication!!.startNextRoute(true)
+        }
+        binding.btnWaze.setOnClickListener {
+            mapApplication?.openWazeApp()
         }
     }
 
@@ -131,10 +143,10 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
 //                val intent = intent
 //                var route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
-//                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
-//                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
+                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
+                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
 //                    Route 1
-                    val route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
+//                val route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
 
 //                    Second Stop
 //                    val route =  "}oxxCqsiyHoA{DmAuDi@_BIWK[CMe@uAoFuP??h@UfDwAf@S??K[Qi@c@sAK[??"
@@ -157,7 +169,7 @@ class MainActivity : AppCompatActivity() {
 //                    val route = "izwxCmmiyHy@\\_A^??Oe@??bCaA~As@d@W??Vv@jCbIXz@HT??MDoBv@cLzE_Bp@YNKDwAj@sB|@sAj@wItDo@VqMlF??oA`AwErBSHEBCBCFCDADAD??HVd@|A~Qfl@tJl[??RZvB|GDN@FBBDDDBBBF@??NGj@UbIoDr@]nHcDFCfAg@|JiELG~EwBdAc@??Tv@nDtMtA`FPn@Nh@J\\hAfE???TATCNIXIV_EhCw@f@s@b@MHaAn@c@Vi@\\UNaAn@??"
 
                     looger.logSelectContent("Intent", "Route", "Route intent received: $route")
-                    Log.e("asd", route)
+
                     mapApplication?.stopListenerThing()
 //                    mapApplication?.clearRoute()
                     getCurrentLocation({ location ->
@@ -174,17 +186,45 @@ class MainActivity : AppCompatActivity() {
                         )
                         startTimer()
                     })
-//                } else {
-//                    looger.logSelectContent("Navigation", "No Route", "No route found in intent")
-//                    finish()
+                } else {
+                    looger.logSelectContent("Navigation", "No Route", "No route found in intent")
+                    finish()
                 }
-//            }
-
+            }
         }, 1000)
     }
 
+    private fun initBlinkingEffect() {
+
+//        binding.shimmerViewContainer.apply {
+//            setShimmer(
+//                Shimmer.ColorHighlightBuilder()
+//                    .setBaseAlpha(0.5f) // Lower alpha to keep shimmer subtle
+//                    .setHighlightAlpha(0.1f)
+//                    .setDuration(1500L)  // Duration for shimmer cycle
+//                    .build()
+//            )
+//            startShimmer()
+//        }
+
+//        val blinkAnimation = AlphaAnimation(0.0f, 1.0f).apply {
+//            duration = 1000 // duration for each blink (in milliseconds)
+//            repeatMode = Animation.REVERSE
+//            repeatCount = Animation.INFINITE
+//        }
+//
+//        binding.btnWaze.startAnimation(blinkAnimation)
+    }
+
     private fun startServices() {
-        startForegroundService(Intent(this, BackgroundLocationService::class.java))
+        val intent = Intent(this, BackgroundLocationService::class.java)
+//        val intent = Intent(this, NewBackgroundLocationService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+//        startForegroundService(Intent(this, BackgroundLocationService::class.java))
     }
 
     private fun requestLocationPermission() {
@@ -199,6 +239,7 @@ class MainActivity : AppCompatActivity() {
                 binding.maneuverView,
                 binding.btnOffRoute,
                 binding.btnDrawNextLayout,
+                binding.rlWaze,
                 looger,
                 {
                     Handler(Looper.getMainLooper()).postDelayed({
