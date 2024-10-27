@@ -126,9 +126,9 @@ class MapApplication constructor(
     private val offRouteScope = CoroutineScope(Dispatchers.IO)
     private var offRouteJob: Job? = null
     private var isHitFirstTime = false
-    private var OFF_ROUTE_TIMER = 8000
+    private var OFF_ROUTE_TIMER = 8000L
 
-    //    private var isOffRouteTimerInProgress = false
+        private var isOffRouteTimerInProgress = false
     private var calculationScope = CoroutineScope(Dispatchers.IO)
     private val routeScope = CoroutineScope(Dispatchers.IO)
 
@@ -515,23 +515,23 @@ class MapApplication constructor(
      */
     private lateinit var tripProgressApi: MapboxTripProgressApi
 
-    private fun addOffRouteDelay() {
-        offRouteScope.launch {
-//            isOffRouteTimerInProgress = true
-//            delay(OFF_ROUTE_TIMER)
-//            isOffRouteTimerInProgress = false
-//            if (showAction) {
-
-//            val needToShowRoute = isWithinTolerance()
+//    private fun addOffRouteDelay() {
+//        offRouteScope.launch {
+////            isOffRouteTimerInProgress = true
+////            delay(OFF_ROUTE_TIMER)
+////            isOffRouteTimerInProgress = false
+////            if (showAction) {
 //
-//            if (!needToShowRoute) {
-            withContext(Dispatchers.Main) {
-                handleOffRouteDetected()
-            }
+////            val needToShowRoute = isWithinTolerance()
+////
+////            if (!needToShowRoute) {
+//            withContext(Dispatchers.Main) {
+//                handleOffRouteDetected()
 //            }
-//            }
-        }
-    }
+////            }
+////            }
+//        }
+//    }
 
     fun decodePolyline(polyline: String): List<Point> {
         return PolylineUtils.decode(polyline, 6)
@@ -563,6 +563,22 @@ class MapApplication constructor(
         Log.e("OFFSET", "OFFSET_duration -> $offset, isOffRoute: $isOffRoute")
 
         if (isOffRoute) {
+            if (!isHitFirstTime) {
+                isHitFirstTime = true
+                logger.logSelectContent(
+                    "Off Route", "OffRoute Detected", "Initial offRoute detected"
+                )
+                addOffRouteDelay(false)
+            } else {
+                if (!isOffRouteTimerInProgress && offRouteButton.visibility == View.GONE) {
+                    logger.logSelectContent(
+                        "Off Route", "OffRoute Detected", "Vehicle went off-route"
+                    )
+                    addOffRouteDelay(showAction = true)
+                }
+            }
+        }
+/*        if (isOffRoute) {
             if (lastCurrentLocation != null) {
                 if (!isHitFirstTime) {
                     // First-time detection: wait for 15 seconds
@@ -587,10 +603,11 @@ class MapApplication constructor(
                     }
                 }
             }
-        } else {
+        }
+        else {
             // When the vehicle is no longer off-route
 
-            /*            if (offRouteButton.visibility == View.VISIBLE) {
+            *//*            if (offRouteButton.visibility == View.VISIBLE) {
                 Log.e("OFFSET", "OFFSET-> Main Else Condition")
 //                if (isWithinTolerance()) {
                     Log.e("OFFSET", "OFFSET-> Main Else Condition After Tolerance True")
@@ -601,7 +618,22 @@ class MapApplication constructor(
                     )
                     offRouteButton.visibility = View.GONE
 //                }
-            }*/
+            }*//*
+        }*/
+    }
+
+    private fun addOffRouteDelay(showAction: Boolean = false) {
+        offRouteScope.launch {
+            isOffRouteTimerInProgress = true
+            delay(OFF_ROUTE_TIMER)
+            isOffRouteTimerInProgress = false
+
+            if (showAction) {
+                withContext(Dispatchers.Main) {
+                    handleOffRouteDetected()
+                    increaseOffRouteCount()
+                }
+            }
         }
     }
     /*
@@ -651,7 +683,6 @@ class MapApplication constructor(
         cancelOffRouteTimer()
         offRouteButton.performClick()
         offRouteButton.visibility = View.VISIBLE
-
     }
 
     private fun cancelOffRouteTimer() {
@@ -888,20 +919,24 @@ class MapApplication constructor(
                 currentList = listOfChunks.get(currentIndex).list
 //            Log.e("mapApplication","Size: "+listOfChunks.size)
 //            Log.e("mapApplication","Size: "+currentList.size)
-                if (currentIndex == listOfChunks.size - 1) {
-                    wazeButton.visibility = View.VISIBLE
+                withContext(Dispatchers.Main) {
+                    if (currentIndex == listOfChunks.size - 1) {
+                        wazeButton.visibility = View.VISIBLE
+                    }
                 }
-                if (needToAddLocationAtInitial) if (lastCurrentLocation != null) {
-                    currentList.add(
-                        0, Point.fromLngLat(
-                            lastCurrentLocation!!.longitude, lastCurrentLocation!!.latitude
+                withContext(Dispatchers.IO) {
+                    if (needToAddLocationAtInitial) if (lastCurrentLocation != null) {
+                        currentList.add(
+                            0, Point.fromLngLat(
+                                lastCurrentLocation!!.longitude, lastCurrentLocation!!.latitude
+                            )
                         )
-                    )
+                    }
+
+                    destination = currentList.last()
+
+                    findRoute(onSuccessfullDraw)
                 }
-
-                destination = currentList.last()
-
-                findRoute(onSuccessfullDraw)
             } else {
                 withContext(Dispatchers.Main) {
                     logger.logSelectContent("Route", "Complete", "Route demonstration completed")
