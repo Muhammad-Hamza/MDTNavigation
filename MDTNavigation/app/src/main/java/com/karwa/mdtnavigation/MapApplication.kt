@@ -360,6 +360,7 @@ class MapApplication constructor(
 
                 arrivalTimeCalendar.timeInMillis =
                     System.currentTimeMillis() + (remainingTimeInHour * 1000).toLong()
+                logger.logSelectContent("ETA", "Remaining Arrival Time", ""+arrivalTimeCalendar.timeInMillis)
 
                 val newTime = String.format(
                     "%1$02d:%2$02d",
