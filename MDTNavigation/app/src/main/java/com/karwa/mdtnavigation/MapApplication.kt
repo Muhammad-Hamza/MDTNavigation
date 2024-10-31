@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.location.Location
 import android.net.Uri
+import android.os.Environment
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
@@ -55,6 +56,7 @@ import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.navigation.base.TimeFormat
 import com.mapbox.navigation.base.extensions.applyDefaultNavigationOptions
 import com.mapbox.navigation.base.extensions.applyLanguageAndVoiceUnitOptions
+import com.mapbox.navigation.base.options.HistoryRecorderOptions
 import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.route.*
 import com.mapbox.navigation.base.trip.model.RouteLegProgress
@@ -274,6 +276,8 @@ class MapApplication constructor(
                         if (wazeButton.visibility == View.VISIBLE) {
                             hideWazeButton()
                         }
+
+                        mapboxNavigation.historyRecorder.stopRecording({})
                     }
                 } else {
                     if (fractionTraveled >= 0.80) {
@@ -1021,15 +1025,22 @@ class MapApplication constructor(
             ApplicationStateData.getInstance().applicationContext
         )
 
+        val downloadDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
 
         // Build NavigationOptions with the access token and location engine
         val navigationOptions = NavigationOptions.Builder(
             ApplicationStateData.getInstance().applicationContext
-        ).accessToken(MAPBOX_ACCESS_TOKEN).locationEngine(locationEngine) // Set the location engine
+        ).accessToken(MAPBOX_ACCESS_TOKEN).
+        historyRecorderOptions(
+            HistoryRecorderOptions.Builder()
+                .fileDirectory(downloadDirectory)
+                .build()
+        ).locationEngine(locationEngine) // Set the location engine
             .build()
 
         // Initialize MapboxNavigation with NavigationOptions
         mapboxNavigation = MapboxNavigationProvider.create(navigationOptions)
+        mapboxNavigation.historyRecorder.startRecording()
     }
 
     private fun initPuckLocation() {

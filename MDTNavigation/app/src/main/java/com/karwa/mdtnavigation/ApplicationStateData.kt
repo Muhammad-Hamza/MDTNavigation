@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
 import androidx.core.app.ActivityCompat
+import com.mapbox.common.LogConfiguration
+import com.mapbox.common.LoggingLevel
 
 /**
  * Created by mHamza on 12/20/2023.
@@ -38,6 +40,7 @@ import androidx.core.app.ActivityCompat
 
     override fun onCreate() {
         super.onCreate()
+        initializeMapboxLogging()
         initBackgroundServices()
     }
 
@@ -95,4 +98,7 @@ import androidx.core.app.ActivityCompat
      var txtRemainingDistance: String = ""
     var arrivalTime: Long = 0
 
+    fun initializeMapboxLogging() {
+        LogConfiguration.setLoggingLevel(LoggingLevel.DEBUG)
+    }
 }

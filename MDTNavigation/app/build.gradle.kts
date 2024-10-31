@@ -15,8 +15,8 @@ android {
         applicationId = "com.karwa.mdtnavigation"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.5"
+        versionCode = 6
+        versionName = "1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -84,6 +84,7 @@ dependencies {
 
     // Map Matching functionality
     implementation("com.mapbox.mapboxsdk:mapbox-sdk-services:6.3.0")
+//    implementation("com.mapbox.common:mapbox-common:10.15.0")
 
     // Turf for polyline decoding and geometry calculations (optional)
     implementation("com.mapbox.mapboxsdk:mapbox-sdk-turf:6.3.0")
