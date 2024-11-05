@@ -177,7 +177,7 @@ public class BackgroundLocationService extends Service
         if (!isServiceRunning)
         {
             this.locationRequest = LocationRequest.create();
-            this.locationRequest.setInterval(1000);
+            this.locationRequest.setInterval(1500);
             this.locationRequest.setFastestInterval(1000);
             this.locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 

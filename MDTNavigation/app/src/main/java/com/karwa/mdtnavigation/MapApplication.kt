@@ -1,8 +1,12 @@
 package com.karwa.mdtnavigation
 
+import android.Manifest
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.location.Location
@@ -14,6 +18,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.RelativeLayout
+import androidx.annotation.RequiresPermission
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.gms.maps.model.LatLng
@@ -25,7 +31,9 @@ import com.karwa.mdtnavigation.log.FirebaseLogger
 import com.karwa.mdtnavigation.model.ChunkModel
 import com.karwa.mdtnavigation.model.getDistance
 import com.mapbox.android.core.location.LocationEngine
+import com.mapbox.android.core.location.LocationEngineCallback
 import com.mapbox.android.core.location.LocationEngineProvider
+import com.mapbox.android.core.location.LocationEngineResult
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.api.directions.v5.DirectionsCriteria
 import com.mapbox.api.directions.v5.models.RouteOptions
@@ -130,7 +138,7 @@ class MapApplication constructor(
     private var isHitFirstTime = false
     private var OFF_ROUTE_TIMER = 8000L
 
-        private var isOffRouteTimerInProgress = false
+    private var isOffRouteTimerInProgress = false
     private var calculationScope = CoroutineScope(Dispatchers.IO)
     private val routeScope = CoroutineScope(Dispatchers.IO)
 
@@ -232,6 +240,8 @@ class MapApplication constructor(
     lateinit var currentList: MutableList<Point>
     var currentIndex = -1
     var isOffRoute = false
+
+    private var previousPoint: Point? = null // Keep track of the previous location
 
     /**
      * Gets notified with progress along the currently active route.
@@ -364,7 +374,11 @@ class MapApplication constructor(
 
                 arrivalTimeCalendar.timeInMillis =
                     System.currentTimeMillis() + (remainingTimeInHour * 1000).toLong()
-                logger.logSelectContent("ETA", "Remaining Arrival Time", ""+arrivalTimeCalendar.timeInMillis)
+                logger.logSelectContent(
+                    "ETA",
+                    "Remaining Arrival Time",
+                    "" + arrivalTimeCalendar.timeInMillis
+                )
 
                 val newTime = String.format(
                     "%1$02d:%2$02d",
@@ -583,36 +597,36 @@ class MapApplication constructor(
                 }
             }
         }
-/*        if (isOffRoute) {
-            if (lastCurrentLocation != null) {
-                if (!isHitFirstTime) {
-                    // First-time detection: wait for 15 seconds
-                    if (offset > OFF_ROUTE_TIMER) {
-                        lastOffrouteTime = System.currentTimeMillis()
-                        isHitFirstTime = true
-                        Log.e("OFFSET", "OFFSET-> First IF Condition")
-                        logger.logSelectContent(
-                            "Off Route", "OffRoute Detected", "Initial offRoute detected"
-                        )
-                    }
-                } else {
-//                    isHitFirstTime==true here
-                    // After the initial ignore period
-                    if (offset > OFF_ROUTE_TIMER && offRouteButton.visibility == View.GONE) {
-                        Log.e("OFFSET", "OFFSET-> Subsequent Else Condition")
-                        lastOffrouteTime = System.currentTimeMillis()
-                        logger.logSelectContent(
-                            "Off Route", "OffRoute Detected", "Vehicle went off-route"
-                        )
-                        addOffRouteDelay()
+        /*        if (isOffRoute) {
+                    if (lastCurrentLocation != null) {
+                        if (!isHitFirstTime) {
+                            // First-time detection: wait for 15 seconds
+                            if (offset > OFF_ROUTE_TIMER) {
+                                lastOffrouteTime = System.currentTimeMillis()
+                                isHitFirstTime = true
+                                Log.e("OFFSET", "OFFSET-> First IF Condition")
+                                logger.logSelectContent(
+                                    "Off Route", "OffRoute Detected", "Initial offRoute detected"
+                                )
+                            }
+                        } else {
+        //                    isHitFirstTime==true here
+                            // After the initial ignore period
+                            if (offset > OFF_ROUTE_TIMER && offRouteButton.visibility == View.GONE) {
+                                Log.e("OFFSET", "OFFSET-> Subsequent Else Condition")
+                                lastOffrouteTime = System.currentTimeMillis()
+                                logger.logSelectContent(
+                                    "Off Route", "OffRoute Detected", "Vehicle went off-route"
+                                )
+                                addOffRouteDelay()
+                            }
+                        }
                     }
                 }
-            }
-        }
-        else {
-            // When the vehicle is no longer off-route
+                else {
+                    // When the vehicle is no longer off-route
 
-            *//*            if (offRouteButton.visibility == View.VISIBLE) {
+                    *//*            if (offRouteButton.visibility == View.VISIBLE) {
                 Log.e("OFFSET", "OFFSET-> Main Else Condition")
 //                if (isWithinTolerance()) {
                     Log.e("OFFSET", "OFFSET-> Main Else Condition After Tolerance True")
@@ -1025,13 +1039,13 @@ class MapApplication constructor(
             ApplicationStateData.getInstance().applicationContext
         )
 
-        val downloadDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+        val downloadDirectory =
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
 
         // Build NavigationOptions with the access token and location engine
         val navigationOptions = NavigationOptions.Builder(
             ApplicationStateData.getInstance().applicationContext
-        ).accessToken(MAPBOX_ACCESS_TOKEN).
-        historyRecorderOptions(
+        ).accessToken(MAPBOX_ACCESS_TOKEN).historyRecorderOptions(
             HistoryRecorderOptions.Builder()
                 .fileDirectory(downloadDirectory)
                 .build()
@@ -1041,6 +1055,97 @@ class MapApplication constructor(
         // Initialize MapboxNavigation with NavigationOptions
         mapboxNavigation = MapboxNavigationProvider.create(navigationOptions)
         mapboxNavigation.historyRecorder.startRecording()
+
+        // Add a listener to get location updates and apply map-matching
+//        if (ActivityCompat.checkSelfPermission(
+//                ApplicationStateData.getInstance(),
+//                Manifest.permission.ACCESS_FINE_LOCATION
+//            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+//                ApplicationStateData.getInstance(),
+//                Manifest.permission.ACCESS_COARSE_LOCATION
+//            ) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            // TODO: Consider calling
+//            //    ActivityCompat#requestPermissions
+//            // here to request the missing permissions, and then overriding
+//            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+//            //                                          int[] grantResults)
+//            // to handle the case where the user grants the permission. See the documentation
+//            // for ActivityCompat#requestPermissions for more details.
+//            return
+//        }
+//
+//        getLastLocationWithMapMatching(locationEngine)
+
+    }
+
+    @RequiresPermission(anyOf = [ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION])
+    fun getLastLocationWithMapMatching(locationEngine: LocationEngine) {
+        try {
+            locationEngine.getLastLocation(object : LocationEngineCallback<LocationEngineResult> {
+                override fun onSuccess(result: LocationEngineResult?) {
+                    val location = result?.lastLocation
+                    if (location != null) {
+                        // Convert the raw location to a Point
+                        val rawPoint = Point.fromLngLat(location.longitude, location.latitude)
+
+                        // Map-match the location and update the camera
+//                        mapMatchLocationAndUpdateCamera(rawPoint)
+                    }
+                }
+
+                override fun onFailure(exception: Exception) {
+                    Log.e("LocationEngine", "Failed to get last location: ${exception.message}")
+                }
+            })
+        } catch (e: SecurityException) {
+            Log.e("LocationPermission", "Location permission not granted: ${e.message}")
+        }
+    }
+
+    private fun mapMatchLocationAndUpdateCamera(rawPoint: Point, callback: (Point?) -> Unit) {
+        if (previousPoint == null) {
+            previousPoint = rawPoint
+            callback(rawPoint) // Return the initial point as the matched point
+            return
+        }
+
+        val mapboxMapMatching = MapboxMapMatching.builder()
+            .accessToken(MAPBOX_ACCESS_TOKEN)
+            .profile(DirectionsCriteria.PROFILE_DRIVING)
+            .coordinates(listOf(previousPoint!!, rawPoint))
+            .build()
+
+        mapboxMapMatching.enqueueCall(object : Callback<MapMatchingResponse> {
+            override fun onResponse(
+                call: Call<MapMatchingResponse>,
+                response: Response<MapMatchingResponse>
+            ) {
+                val geometry = response.body()?.matchings()?.firstOrNull()?.geometry()
+                if (geometry != null) {
+                    val decodedPoints = PolylineUtils.decode(geometry, 6)
+                    val mapMatchedPoint = decodedPoints.firstOrNull()
+                    logger.logSelectContent(
+                        "MapMatching",
+                        "MapMatching",
+                        gson.toJson(mapMatchedPoint)
+                    )
+                    callback(mapMatchedPoint) // Pass the map-matched point to the callback
+
+//                    if (mapMatchedPoint != null) {
+//                        mapView.getMapboxMap().setCamera(CameraOptions.Builder().center(mapMatchedPoint).zoom(15.0).build())
+//                    }
+                } else {
+                    callback(null) // No matched point found
+                }
+                previousPoint = rawPoint // Update the previous point
+            }
+
+            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
+                logger.logSelectContent("MapMatchingError","MapMatching", "Map matching failed: ${t.message}")
+                callback(null) // Return null on failure
+            }
+        })
     }
 
     private fun initPuckLocation() {
@@ -1100,7 +1205,8 @@ class MapApplication constructor(
             navigationRouteId =
                 mapboxNavigation.requestRoutes(RouteOptions.builder()
                     .applyDefaultNavigationOptions()
-                    .applyLanguageAndVoiceUnitOptions(context).coordinatesList(currentList)
+                    .applyLanguageAndVoiceUnitOptions(context)
+                    .coordinatesList(currentList)
                     .waypointIndicesList(listOf(0, currentList.size - 1))
                     .profile(DirectionsCriteria.PROFILE_DRIVING).bannerInstructions(true)
                     .annotationsList(
@@ -1108,7 +1214,7 @@ class MapApplication constructor(
                             DirectionsCriteria.ANNOTATION_CONGESTION_NUMERIC,
                             DirectionsCriteria.ANNOTATION_DISTANCE,
                         )
-                    ).geometries(DirectionsCriteria.GEOMETRY_POLYLINE).voiceInstructions(true)
+                    ).geometries(DirectionsCriteria.GEOMETRY_POLYLINE6).voiceInstructions(true)
                     .steps(true).alternatives(false).enableRefresh(false).build(),
                     object : NavigationRouterCallback {
 
@@ -1116,42 +1222,6 @@ class MapApplication constructor(
                             routes: List<NavigationRoute>, routerOrigin: RouterOrigin
                         ) {
                             routeScope.launch {
-
-                                /*
-                                val navigationRoute = routes.first() // Get the first route
-                                                                currentRoutelinesStr =
-                                                                    navigationRoute.directionsRoute.geometry()!! // Get the polyline geometry
-
-                                                                if (currentRoutelinesStr != null) {
-                                                                    // Log the encoded polyline for reference
-                                                                    Log.d("OFFSET", currentRoutelinesStr)
-
-                                                                    // Decode the polyline with precision 6 (as is typical with Mapbox routes)
-                                                                    val polylinePoints: List<Point> = PolylineUtils.decode(currentRoutelinesStr, 6)
-
-                                                                    // Log the first few points to verify if they make sense for your intended location
-                                                                    polylinePoints.take(5).forEachIndexed { index, point ->
-                                                                        Log.d("OFFSET->$index", "Lat: ${point.latitude()}, Lng: ${point.longitude()}")
-                                                                    }
-
-                                                                    // Example of calculating the distance between the first point and your current location
-                                                                    val currentLatLng = Point.fromLngLat(51.47101734357076, 25.20200899938757)
-
-                                                                    val firstPoint = polylinePoints.first()
-                                                                    val distance = FloatArray(1)
-                                                                    android.location.Location.distanceBetween(
-                                                                        currentLatLng.latitude(), currentLatLng.longitude(),
-                                                                        firstPoint.latitude(), firstPoint.longitude(), distance
-                                                                    )
-
-                                                                    Log.d("OFFSET", "Distance from first point: ${distance[0]} meters")
-
-                                                                    // Verify if within tolerance
-                                                                    val withinTolerance = distance[0] <= 20 // assuming 20 meters as tolerance
-                                                                    Log.d("OFFSET", "Is within tolerance: $withinTolerance")
-
-                                                                }
-                                */
 
                                 val newRoutes = if (isLastRound()) {
                                     routes
@@ -1163,13 +1233,7 @@ class MapApplication constructor(
                                     "ASD",
                                     "Current Zoom Level: ${mapView.getMapboxMap().cameraState.zoom}"
                                 )
-//                                if (lastCurrentLocation != null && mapView.getMapboxMap().cameraState.zoom.toInt() != 17) {
-//                                    mapView.getMapboxMap().coordinateBoundsZoomForCamera(
-//                                        CameraOptions.Builder().zoom(17.0)
-//                                            .center(lastCurrentLocation?.getPoint()).build()
-//                                    )
-//                                }
-//                                extractRouteCoordinates(newRoutes.first())
+//
                                 routeScope.launch(Dispatchers.Main) {
 
                                     if (lastCurrentLocation != null && !isRoutingCreatingFirstTime) {
@@ -1454,7 +1518,7 @@ class MapApplication constructor(
 
     }
 
-    override fun onNewLocation(location: Location?) {
+    override fun onNewLocaonNewLocation(location: Location?) {
         location?.let {
             if (it.speed > 0f && it.bearing > 0) {
 //                if (it.bearing > 0) {
@@ -1482,12 +1546,35 @@ class MapApplication constructor(
         location?.let {
             if (it.speed > 0f) {
                 if (it.bearing > 0) {
-                    lastCurrentLocation = LatLng(it.latitude, it.longitude)
                     lastSpeed = location.speed
-                    navigationLocationProvider.changePosition(
-                        location = it,
-                        keyPoints = emptyList(),
-                    )
+
+                    val rawPoint = Point.fromLngLat(it.longitude, it.latitude)
+                    mapMatchLocationAndUpdateCamera(rawPoint) { mapMatchedPoint ->
+
+                        if (mapMatchedPoint != null) {
+                            val mapMatchedLocation = Location(it).apply {
+                                latitude = mapMatchedPoint.latitude()
+                                longitude = mapMatchedPoint.longitude()
+                            }
+                            lastCurrentLocation =
+                                LatLng(mapMatchedLocation.latitude, mapMatchedLocation.longitude)
+                            navigationLocationProvider.changePosition(
+                                location = mapMatchedLocation,
+                                keyPoints = emptyList(),
+                            )
+                        } else {
+                            // Fall back to raw location if map-matching fails
+                            lastCurrentLocation = LatLng(it.latitude, it.longitude)
+                            navigationLocationProvider.changePosition(
+                                location = it,
+                                keyPoints = emptyList(),
+                            )
+                        }
+                    }
+//                    navigationLocationProvider.changePosition(
+//                        location = it,
+//                        keyPoints = emptyList(),
+//                    )
 
                     if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
                         mapCameraRecenterTimer = System.currentTimeMillis()
