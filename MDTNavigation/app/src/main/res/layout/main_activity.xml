@@ -92,7 +92,6 @@
 
 
                 <RelativeLayout
-                    android:visibility="gone"
                     android:id="@+id/rlWaze"
                     android:layout_width="80dp"
                     android:layout_margin="16dp"
@@ -110,30 +109,25 @@
 <!--                        android:layout_width="match_parent"-->
 <!--                        android:layout_height="match_parent" />-->
                 </RelativeLayout>
+                <LinearLayout
+                    android:id="@+id/llCurrentLocation"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="16dp"
+                    android:background="@drawable/ic_round_edges"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp">
 
+                    <ImageView
+                        android:layout_width="35dp"
+                        android:layout_height="35dp"
+                        android:layout_margin="16dp"
+                        android:src="@mipmap/current_location"
+                        app:tint="@color/white" />
+                </LinearLayout>
             </LinearLayout>
         </com.mapbox.maps.MapView>
-
-        <LinearLayout
-            android:id="@+id/llCurrentLocation"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_above="@id/bottomBarLayout"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentRight="true"
-            android:layout_margin="8dp"
-            android:background="@drawable/ic_round_circle"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:padding="10dp">
-
-            <ImageView
-                android:layout_width="25dp"
-                android:layout_height="25dp"
-                android:layout_margin="16dp"
-                android:src="@mipmap/current_location"
-                android:textColor="@color/white" />
-        </LinearLayout>
 
         <include
             android:id="@+id/bottomBarLayout"

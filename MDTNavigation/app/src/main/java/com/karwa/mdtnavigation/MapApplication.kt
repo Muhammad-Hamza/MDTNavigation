@@ -597,6 +597,9 @@ class MapApplication constructor(
                 }
             }
         }
+
+
+
         /*        if (isOffRoute) {
                     if (lastCurrentLocation != null) {
                         if (!isHitFirstTime) {
@@ -649,7 +652,7 @@ class MapApplication constructor(
 
             if (showAction) {
                 withContext(Dispatchers.Main) {
-                    handleOffRouteDetected()
+//                    handleOffRouteDetected()
                     increaseOffRouteCount()
                 }
             }
@@ -1844,7 +1847,7 @@ class MapApplication constructor(
 
     fun hideWazeButton() {
         if (currentIndex < listOfChunks.size - 1) {
-            wazeButton.visibility = View.GONE
+//            wazeButton.visibility = View.GONE
         }
     }
 }
