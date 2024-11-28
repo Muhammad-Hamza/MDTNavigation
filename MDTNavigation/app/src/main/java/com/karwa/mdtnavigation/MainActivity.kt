@@ -440,10 +440,10 @@ class MainActivity : AppCompatActivity() {
         Handler(Looper.getMainLooper()).postDelayed(Runnable {
             runOnUiThread {
                 val intent = intent
-//                var route =
-//                    "ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
-                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
-                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
+                var route =
+                    "ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
+//                if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
+//                    val route: String = intent.data?.getQueryParameter("ROUTE_INTENT").toString()
 //                    Route 1
 //                val route ="ewwxCuvdyHO_@I]CIAM??BKAKEIGGE?G?GBEBCFAD?D??EHEDi@l@KPaFrC_@LWDWFC?OCIC??iBcGOk@a@qAwAwEEQGQGQEOoAcEeGkRaAcDyFqQ_C}HkEeN]gAuA}EGU??CYAU@QDQFMFMHMJMLKJExJcErB}@bOkG??rA_At@_@nEmBHE??DCDGBGBMIU]gAeCuH_B{EMa@[}@K_@u@wB??"
 
@@ -485,10 +485,10 @@ class MainActivity : AppCompatActivity() {
                         )
                         startTimer()
                     })
-                } else {
-                    looger.logSelectContent("Navigation", "No Route", "No route found in intent")
-                    finish()
-                }
+//                } else {
+//                    looger.logSelectContent("Navigation", "No Route", "No route found in intent")
+//                    finish()
+//                }
             }
         }, 1000)
     }
@@ -548,6 +548,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        Log.e("A1SD","onPause")
         super.onPause()
     }
 
@@ -573,6 +574,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Log.e("A1SD","onResume")
 
         if (mapApplication != null) {
             mapApplication?.onResume()

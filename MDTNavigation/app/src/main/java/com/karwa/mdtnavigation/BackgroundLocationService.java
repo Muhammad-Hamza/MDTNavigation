@@ -187,9 +187,9 @@ public class BackgroundLocationService extends Service
                 public void onLocationResult(LocationResult locationResult)
                 {
                     Location location = locationResult.getLastLocation();
-                    if(ApplicationStateData.Companion.getInstance().getLocationObserver() != null)
-                        ApplicationStateData.Companion.getInstance().getLocationObserver().onNewLocation(location);
-
+                    if(ApplicationStateData.Companion.getInstance().getLocationObserver() != null) {
+//                        ApplicationStateData.Companion.getInstance().getLocationObserver().onNewLocation(location);
+                    }
                     updateStatusUrgentlyIfRequired(location);
 
                     ApplicationStateData.Companion.getInstance().setCurrentLocation(location);

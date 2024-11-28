@@ -3,6 +3,7 @@ package com.karwa.mdtnavigation
 import android.Manifest
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -53,6 +54,7 @@ import com.mapbox.maps.extension.style.layers.generated.LineLayer
 import com.mapbox.maps.extension.style.sources.addSource
 import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.plugin.LocationPuck2D
+import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
 import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager
@@ -1010,6 +1012,92 @@ class MapApplication constructor(
         mapboxNavigation.unregisterVoiceInstructionsObserver(voiceInstructionsObserver)
         mapboxNavigation.unregisterOffRouteObserver(offRouteProgressObserver)
         mapboxNavigation.unregisterArrivalObserver(arrivalObserver)
+        mapboxNavigation.unregisterLocationObserver(locationObserver)
+
+    }
+
+    private val locationObserver = object : LocationObserver {
+        override fun onNewRawLocation(rawLocation: Location) {}
+        override fun onNewLocationMatcherResult(locationMatcherResult: LocationMatcherResult) {
+
+            if (locationMatcherResult.enhancedLocation.speed > 0f) {
+                if (locationMatcherResult.enhancedLocation.bearing > 0) {
+                    lastSpeed = locationMatcherResult.enhancedLocation.speed
+                }
+            }
+
+
+            val enhancedLocation = locationMatcherResult.enhancedLocation
+            lastCurrentLocation =
+                LatLng(enhancedLocation.latitude, enhancedLocation.longitude)
+
+            navigationLocationProvider.changePosition(
+                enhancedLocation)
+            updateCamera(
+                Point.fromLngLat(
+                    enhancedLocation.longitude, enhancedLocation.latitude
+                ),
+                enhancedLocation.bearing.toDouble()
+            )
+        }
+    }
+
+
+    private fun updateCamera(point: Point, bearing: Double?) {
+//        val mapAnimationOptionsBuilder = MapAnimationOptions.Builder()
+
+        /*val animationOptions = MapAnimationOptions.Builder()
+            .duration(600)
+            .animatorListener(object : Animator.AnimatorListener{
+                override fun onAnimationStart(p0: Animator) {
+
+                }
+
+                override fun onAnimationEnd(p0: Animator) {
+                }
+
+                override fun onAnimationCancel(p0: Animator) {
+                }
+
+                override fun onAnimationRepeat(p0: Animator) {
+                }
+            }) */// listener updates isAnimating flag
+
+
+//
+//        if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
+//            mapCameraRecenterTimer = System.currentTimeMillis()
+//            if (isFirstTime) {
+//                isFirstTime = false
+//                viewportDataSource.followingZoomPropertyOverride(17.0)
+//                viewportDataSource.followingPadding =
+//                    EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(100).toDouble(), 0.0)
+//            }
+//        }
+//        navigationCamera.requestNavigationCameraToFollowing()
+//
+        val location = Location("")
+        location.latitude = point.latitude()
+        location.longitude= point.longitude()
+        location.bearing = bearing!!.toFloat()
+        location.speed = lastSpeed
+//        viewportDataSource.onLocationChanged(location)
+//        viewportDataSource.evaluate()
+
+        navigationCamera.requestNavigationCameraToFollowing()
+        viewportDataSource.onLocationChanged(location)
+        viewportDataSource.evaluate()
+
+//        mapView.camera.easeTo(
+//            CameraOptions.Builder()
+//                .center(point)
+//                .bearing(bearing)
+//                .pitch(45.0)
+//                .zoom(17.0)
+////                .padding( EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(100).toDouble(), 0.0))
+//                .build(),
+////            animationOptions.build()
+//        )
     }
 
     fun registerLocationObserver() {
@@ -1023,6 +1111,8 @@ class MapApplication constructor(
         mapboxNavigation.registerOffRouteObserver(offRouteProgressObserver)
         mapboxNavigation.registerArrivalObserver(arrivalObserver)
         mapboxNavigation.registerBannerInstructionsObserver { bannerInstructions -> }
+        mapboxNavigation.registerLocationObserver(locationObserver)
+
     }
 
     private fun initCamera() {
@@ -1058,27 +1148,6 @@ class MapApplication constructor(
         // Initialize MapboxNavigation with NavigationOptions
         mapboxNavigation = MapboxNavigationProvider.create(navigationOptions)
         mapboxNavigation.historyRecorder.startRecording()
-
-        // Add a listener to get location updates and apply map-matching
-//        if (ActivityCompat.checkSelfPermission(
-//                ApplicationStateData.getInstance(),
-//                Manifest.permission.ACCESS_FINE_LOCATION
-//            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-//                ApplicationStateData.getInstance(),
-//                Manifest.permission.ACCESS_COARSE_LOCATION
-//            ) != PackageManager.PERMISSION_GRANTED
-//        ) {
-//            // TODO: Consider calling
-//            //    ActivityCompat#requestPermissions
-//            // here to request the missing permissions, and then overriding
-//            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-//            //                                          int[] grantResults)
-//            // to handle the case where the user grants the permission. See the documentation
-//            // for ActivityCompat#requestPermissions for more details.
-//            return
-//        }
-//
-//        getLastLocationWithMapMatching(locationEngine)
 
     }
 
@@ -1440,111 +1509,6 @@ class MapApplication constructor(
         }
     }
 
-    /*private var lastMatchedTime: Long = 0
-    private val THROTTLE_INTERVAL = 1000L // 1 second throttle
-
-    private fun matchLocationToRoad(location: Location) {
-        val locationPoint = Point.fromLngLat(location.longitude, location.latitude)
-
-        // Create the request for Map Matching
-        val client = MapboxMapMatching.builder()
-            .accessToken(MAPBOX_ACCESS_TOKEN)
-            .profile(DirectionsCriteria.PROFILE_DRIVING) // Specify the travel mode
-            .coordinates(listOf(locationPoint, locationPoint))
-            .geometries(DirectionsCriteria.GEOMETRY_POLYLINE) // Specify that you want polyline geometries
-            .build()
-
-        client.enqueueCall(object : Callback<MapMatchingResponse> {
-            override fun onResponse(
-                call: Call<MapMatchingResponse>,
-                response: Response<MapMatchingResponse>
-            ) {
-
-                if (response.isSuccessful && response.body()?.matchings()?.isNotEmpty() == true) {
-                    val matchings = response.body()?.matchings()
-                    val matchedGeometry =
-                        matchings?.get(0)?.geometry() // Get the first matching geometry
-
-                    if (!TextUtils.isEmpty(matchedGeometry)) {
-                        val routePoints: List<Point> = PolylineUtils.decode(matchedGeometry!!, 6)
-
-                        if (routePoints.isNotEmpty()) {
-                            val snappedLocation =
-                                LatLng(routePoints[0].latitude(), routePoints[0].longitude())
-                            updatePuckPosition(snappedLocation, location)
-                        } else {
-                            Log.e("MapMatching", "No coordinates found in the matched geometry")
-                            updatePuckPosition(locationPoint.getLatLng(), location)
-                        }
-                    } else {
-                        updatePuckPosition(locationPoint.getLatLng(), location)
-                        Log.e("MapMatching", "Matched geometry is null")
-                    }
-                } else {
-                    updatePuckPosition(locationPoint.getLatLng(), location)
-                    Log.e(
-                        "MapMatching",
-                        "Map Matching API returned no matchings or the request failed"
-                    )
-                }
-            }
-
-            override fun onFailure(call: Call<MapMatchingResponse>, t: Throwable) {
-                updatePuckPosition(locationPoint.getLatLng(), location)
-            }
-        })
-    }
-
-    private fun updatePuckPosition(snappedLocation: LatLng, location: Location) {
-        // Update the puck's position on the map with the snapped location
-        lastCurrentLocation = snappedLocation
-        navigationLocationProvider.changePosition(
-            location = Location("").apply {
-                latitude = snappedLocation.latitude
-                longitude = snappedLocation.longitude
-            },
-            keyPoints = emptyList()
-        )
-
-        if (System.currentTimeMillis() - mapCameraRecenterTimer > MAPBOX_DELAY_TIMER) {
-            mapCameraRecenterTimer = System.currentTimeMillis()
-            if (isFirstTime) {
-                isFirstTime = false
-                viewportDataSource.followingZoomPropertyOverride(17.0)
-                viewportDataSource.followingPadding =
-                    EdgeInsets(0.0, 0.0, ImageUtil.dpToPx(250).toDouble(), 0.0)
-            }
-        }
-        navigationCamera.requestNavigationCameraToFollowing()
-        viewportDataSource.onLocationChanged(location)
-        viewportDataSource.evaluate()
-
-    }
-
-    override fun onNewLocaonNewLocation(location: Location?) {
-        location?.let {
-            if (it.speed > 0f && it.bearing > 0) {
-//                if (it.bearing > 0) {
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastMatchedTime > THROTTLE_INTERVAL) {
-                    lastCurrentLocation = LatLng(it.latitude, it.longitude)
-                    lastSpeed = location.speed
-
-                    matchLocationToRoad(location)
-//                    navigationLocationProvider.changePosition(
-//                        location = it,
-//                        keyPoints = emptyList(),
-//                    )
-                    lastMatchedTime = currentTime
-
-                }
-//                } else {
-////                    Log.e("Location", Gson().toJson(location))
-//                }
-            }
-        }
-    }
-*/
     override fun onNewLocation(location: Location?) {
         location?.let {
             if (it.speed > 0f) {
