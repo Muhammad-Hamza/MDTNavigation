@@ -118,6 +118,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.round
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -856,16 +857,26 @@ class MapApplication constructor(
         mapView.getMapboxMap().getStyle { style ->
             style.addSource(geoJsonSource)
 
+            val borderLineLayer = LineLayer("polyline-border-layer", sourceId).apply {
+                round(20.0)
+                lineColor("#2E78C3")  // Border color (black as an example)
+                lineWidth(19.0)       // Border width (slightly larger than the main line)
+            }
+
             val lineLayer = LineLayer("polyline-layer", sourceId).apply {
-                lineColor("#B7D6F6")  // Set the polyline color
-                lineWidth(10.0)        // Set the polyline width
+                round(20.0)
+                lineColor("#57A7F9")  // Set the polyline color
+                lineWidth(15.0)        // Set the polyline width
+
             }
 
             logger.logSelectContent("Polyline", "Draw", "Drawing polyline on the map")
 
             if (style.styleLayerExists("mapbox-masking-layer-main")) {
+                style.addLayerBelow(borderLineLayer, "mapbox-masking-layer-main")
                 style.addLayerBelow(lineLayer, "mapbox-masking-layer-main")
             } else {
+                style.addLayer(borderLineLayer)
                 style.addLayer(lineLayer)
             }
 
@@ -1017,9 +1028,13 @@ class MapApplication constructor(
     }
 
     private val locationObserver = object : LocationObserver {
-        override fun onNewRawLocation(rawLocation: Location) {}
+        override fun onNewRawLocation(rawLocation: Location) {
+            logger.logSelectContent(
+                "locationObserver",
+                "onNewRawLocation",
+                "Lat: "+rawLocation.latitude +", Lng: "+ rawLocation.longitude+", Speed: "+rawLocation.speed)
+        }
         override fun onNewLocationMatcherResult(locationMatcherResult: LocationMatcherResult) {
-
             if (locationMatcherResult.enhancedLocation.speed > 0f) {
                 if (locationMatcherResult.enhancedLocation.bearing > 0) {
                     lastSpeed = locationMatcherResult.enhancedLocation.speed
@@ -1030,6 +1045,11 @@ class MapApplication constructor(
             val enhancedLocation = locationMatcherResult.enhancedLocation
             lastCurrentLocation =
                 LatLng(enhancedLocation.latitude, enhancedLocation.longitude)
+
+            logger.logSelectContent(
+                "locationObserver",
+                "onNewRawLocation",
+                "Lat: "+enhancedLocation.latitude +", Lng: "+ enhancedLocation.longitude+", Speed: "+enhancedLocation.speed)
 
             navigationLocationProvider.changePosition(
                 enhancedLocation)
